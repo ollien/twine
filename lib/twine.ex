@@ -18,7 +18,8 @@ defmodule Twine do
   @doc """
   Print all calls that match the given function call either the given number of
   times (e.g. 10 will print 10 calls), or at a given rate (e.g. {10, 1000} will
-  print 10 calls per second at most)
+  print 10 calls per second at most). The calls given can also have patterns,
+  so you can match specific calls.
 
   Options:
   - `pid`: the pid to print calls for. If omitted, this will run for all pids

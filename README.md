@@ -19,6 +19,14 @@ Twine.print_calls(MyModule.my_function(_arg1, _arg2), 3)
 Just like `recon_trace`, this will print the first three calls to
 `MyModule.my_function/2`, but will do so in Elixir syntax.
 
+You can even match specific calls by using pattern matching. This will
+print all calls to `handle_call` for the :ping call.
+```ex
+require Twine
+
+Twine.print_calls(MyModule.handle_call(:ping, _arg2), 3)
+```
+
 More details are provided in the hex docs.
 
 ## Installation
