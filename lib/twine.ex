@@ -61,4 +61,11 @@ defmodule Twine do
       Internal.print_match_output(matches)
     end
   end
+
+  @doc """
+  Clear all existing traces.
+  """
+  def clear() do
+    :recon_trace.clear()
+  end
 end
