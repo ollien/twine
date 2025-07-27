@@ -137,4 +137,44 @@ defmodule TwineTest do
       refute strip_ansii(output) =~ "Blah.func(1, 2, 3)"
     end
   end
+
+  test "allows capturing of single pids" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        parent = self()
+
+        pid =
+          spawn(fn ->
+            receive do
+              :begin -> :ok
+            end
+
+            Blah.func(1, 2, 3)
+            send(parent, :done)
+          end)
+
+        Twine.print_calls(Blah.func(arg1, arg2, arg3), 2, pid: pid)
+        send(pid, :begin)
+
+        Blah.func(0, 0, 0)
+
+        receive do
+          :done -> :ok
+        end
+
+        # Give recon_trace some time to run
+        Process.sleep(100)
+      end
+
+    assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+    refute strip_ansii(output) =~ "Blah.func(0, 0, 0)"
+  end
 end

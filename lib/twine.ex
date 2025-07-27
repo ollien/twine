@@ -14,6 +14,7 @@ defmodule Twine do
     quote do
       recon_opts =
         unquote(opts)
+        |> Keyword.take([:pid])
         |> Keyword.put(:formatter, &Twine.format/1)
         |> Keyword.put(:scope, :local)
 
