@@ -11,6 +11,12 @@ defmodule Twine.Internal do
     end
   end
 
+  def preprocess_args(args) do
+    Enum.map(args, fn arg ->
+      Macro.postwalk(arg, &suppress_identifier_warnings/1)
+    end)
+  end
+
   def validate_mapper!(nil, _num_args) do
     :ok
   end
@@ -71,5 +77,19 @@ defmodule Twine.Internal do
       |> Enum.join(", ")
 
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
+  end
+
+  defp suppress_identifier_warnings({name, meta, context})
+       when is_atom(name) and is_atom(context) do
+    # Prepend an underscore to suppress warnings
+    if not String.starts_with?(Atom.to_string(name), "_") do
+      {String.to_atom("_#{name}"), meta, context}
+    else
+      {name, meta, context}
+    end
+  end
+
+  defp suppress_identifier_warnings(other) do
+    other
   end
 end

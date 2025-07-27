@@ -33,6 +33,7 @@ defmodule Twine do
   """
   defmacro print_calls(call, rate, opts \\ []) do
     {m, f, a} = Macro.decompose_call(call)
+    a = Internal.preprocess_args(a)
 
     quote do
       opts = unquote(opts)

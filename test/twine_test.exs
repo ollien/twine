@@ -38,7 +38,7 @@ defmodule TwineTest do
       File.write!(iex_file_path, code)
 
       {out, 0} =
-        System.cmd("iex", ["-S", "mix"], env: [{"IEX_HOME", dir}])
+        System.cmd("iex", ["-S", "mix"], env: [{"IEX_HOME", dir}], stderr_to_stdout: true)
 
       Regex.replace(~r/^.*BEGIN TWINE TEST\n/s, out, "", global: false)
     end
@@ -292,5 +292,44 @@ defmodule TwineTest do
       end
 
     assert strip_ansii(output) =~ "1 function(s) matched, waiting for calls..."
+  end
+
+  test "does not emit warnings for non-underscore prefixed names" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        Twine.print_calls(Blah.func(arg1, _arg2, _arg3), 1)
+      end
+
+    refute strip_ansii(output) =~ "warning: variable \"arg1\" is unused"
+  end
+
+  test "does not emit warnings for non-underscore prefixed names even in  structures" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        Twine.print_calls(Blah.func({a, [b, c], %{"key" => [e, f]}}, _arg2, _arg3), 1)
+      end
+
+    refute strip_ansii(output) =~ "warning: variable \"a\" is unused"
+    refute strip_ansii(output) =~ "warning: variable \"b\" is unused"
+    refute strip_ansii(output) =~ "warning: variable \"c\" is unused"
+    refute strip_ansii(output) =~ "warning: variable \"d\" is unused"
+    refute strip_ansii(output) =~ "warning: variable \"e\" is unused"
+    refute strip_ansii(output) =~ "warning: variable \"f\" is unused"
   end
 end
