@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2025-07-27
 
-## Added
+### Added
 - Cleaned up output, it is no longer based on exceptions
 - Hex docs now include a dedicated page
 - Added warning when using pin operator
 
 ## [0.1.1] - 2025-07-27
 
-## Fixed
+### Fixed
 - Suppress warnings when calls use non-underscore prefixed argument names.
 
 ## [0.1.0] - 2025-07-27
