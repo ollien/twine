@@ -1,5 +1,7 @@
 # Twine
 
+[![Hex.pm Version](https://img.shields.io/hexpm/v/twine)](https://hex.pm/packages/twine) [![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/twine/)
+
 Twine is a tracing tool based on Ferd's wonderful [`recon_trace`](https://ferd.github.io/recon/recon_trace.html).
 
 `recon_trace` is great for providing a safe way to debug live BEAM systems,
