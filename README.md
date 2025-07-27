@@ -8,6 +8,8 @@ for `recon_trace`, and adds a familiar, friendly, syntax.
 
 ## Usage
 
+In a remote shell for your running process,
+
 ```ex
 require Twine
 
