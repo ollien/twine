@@ -1,11 +1,25 @@
 # Twine
 
-**TODO: Add description**
+Twine is a tracing tool based on Ferd's wonderful [`recon_trace`}](https://ferd.github.io/recon/recon_trace.html).
+
+`recon_trace` is great for providing a safe way to debug live BEAM systems,
+but can be a little unweidly, especially on Elixir systems. `Twine` is a wrapper
+for `recon_trace`, and adds a familiar, friendly, syntax.
+
+## Usage
+
+```ex
+require Twine
+
+Twine.print_calls(MyModule.my_function(_arg1, _arg2), 3)
+```
+
+Just like `recon_trace`, this will print the first three calls to
+`MyModule.my_function/2`, but will do so in Elixir syntax.
+
+More details are provided in the hex docs.
 
 ## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `twine` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -14,8 +28,4 @@ def deps do
   ]
 end
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/twine>.
 
