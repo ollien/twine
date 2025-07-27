@@ -191,7 +191,7 @@ output. Depending on the size of your call, this may take a couple of minutes.
 If you've attempted to use the pin operator when specifying a call, you've
 likely gotten this error
 
-```
+```text
 Call cannot contain a pattern that uses the pin operator (^)
 ```
 
