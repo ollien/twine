@@ -14,10 +14,13 @@ defmodule Twine do
     {m, f, a} = Macro.decompose_call(call)
 
     quote do
+      opts = unquote(opts)
+      {mapper, opts} = Keyword.pop(opts, :mapper, nil)
+
       recon_opts =
-        unquote(opts)
+        opts
         |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, &Internal.format/1)
+        |> Keyword.put(:formatter, Internal.make_format_fn(mapper: mapper))
         |> Keyword.put(:scope, :local)
 
       :recon_trace.calls(

@@ -177,4 +177,60 @@ defmodule TwineTest do
     assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
     refute strip_ansii(output) =~ "Blah.func(0, 0, 0)"
   end
+
+  test "allows mapping of args" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        parent = self()
+
+        Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1,
+          mapper: fn a, b, c ->
+            [a * 1, b * 2, c * 3]
+          end
+        )
+
+        Blah.func(1, 2, 3)
+
+        # Give recon_trace some time to run
+        Process.sleep(100)
+      end
+
+    assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
+  end
+
+  test "allows mapping of args with tuple return value" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        parent = self()
+
+        Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1,
+          mapper: fn a, b, c ->
+            {a * 1, b * 2, c * 3}
+          end
+        )
+
+        Blah.func(1, 2, 3)
+
+        # Give recon_trace some time to run
+        Process.sleep(100)
+      end
+
+    assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
+  end
 end
