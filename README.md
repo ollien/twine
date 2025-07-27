@@ -24,7 +24,7 @@ print all calls to `handle_call` for the :ping call.
 ```ex
 require Twine
 
-Twine.print_calls(MyModule.handle_call(:ping, _arg2), 3)
+Twine.print_calls(MyModule.handle_call(:ping, _from, _state), 3)
 ```
 
 More details are provided in the hex docs.
