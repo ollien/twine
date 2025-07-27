@@ -1,3 +1,4 @@
 %{
   "recon": {:hex, :recon, "2.5.6", "9052588e83bfedfd9b72e1034532aee2a5369d9d9343b61aeb7fbce761010741", [:mix, :rebar3], [], "hexpm", "96c6799792d735cc0f0fd0f86267e9d351e63339cbe03df9d162010cefc26bb0"},
+  "temp": {:hex, :temp, "0.4.9", "eb6355bfa7925a568b3d9eb3bb57e89aa6d2b78bfe8dfb6b698e090631b7f41f", [:mix], [], "hexpm", "bc8bf7b27d9105bef933ef4bf4ba37ac6b899dbeba329deaa88c60b62d6b4b6d"},
 }
