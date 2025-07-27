@@ -44,10 +44,10 @@ defmodule TwineTest do
       iex_file_path = Path.join(dir, ".iex.exs")
       File.write!(iex_file_path, code)
 
-      {out, _exit_code} =
+      {out, exit_code} =
         System.cmd("iex", ["-S", "mix"], env: [{"IEX_HOME", dir}], stderr_to_stdout: true)
 
-      Regex.replace(~r/^.*BEGIN TWINE TEST\n/s, out, "", global: false)
+      {Regex.replace(~r/^.*BEGIN TWINE TEST\n/s, out, "", global: false), exit_code}
     end
   end
 
@@ -57,7 +57,7 @@ defmodule TwineTest do
 
   describe "print_calls" do
     test "prints invocations to remote function" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -78,7 +78,7 @@ defmodule TwineTest do
     end
 
     test "prints invocations to local function" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -103,7 +103,7 @@ defmodule TwineTest do
     end
 
     test "allows matching patterns in the trace" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -128,7 +128,7 @@ defmodule TwineTest do
     end
 
     test "does not print anything if the pattern does not match" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -153,7 +153,7 @@ defmodule TwineTest do
     end
 
     test "allows capturing of single pids" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -193,7 +193,7 @@ defmodule TwineTest do
     end
 
     test "allows mapping of args" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -219,7 +219,7 @@ defmodule TwineTest do
     end
 
     test "allows mapping of args with tuple return value" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -245,7 +245,7 @@ defmodule TwineTest do
     end
 
     test "cannot pass a mapper of incorrect arity" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -273,7 +273,7 @@ defmodule TwineTest do
     end
 
     test "informs user if call is missing" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -284,7 +284,7 @@ defmodule TwineTest do
     end
 
     test "informs user call is matched" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -301,7 +301,7 @@ defmodule TwineTest do
     end
 
     test "does not emit warnings for non-underscore prefixed names" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -318,7 +318,7 @@ defmodule TwineTest do
     end
 
     test "does not emit warnings for non-underscore prefixed names even instructures" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
@@ -342,7 +342,7 @@ defmodule TwineTest do
 
   describe "clear" do
     test "calling clear stops tracing" do
-      output =
+      {output, 0} =
         iex_run do
           require Twine
 
