@@ -11,6 +11,18 @@ defmodule Twine.Internal do
     end
   end
 
+  def validate_mapper!(nil, _num_args) do
+    :ok
+  end
+
+  def validate_mapper!(mapper, num_args) when is_function(mapper, num_args) do
+    :ok
+  end
+
+  def validate_mapper!(_mapper, _num_args) do
+    raise "mapper function must have the same arity as traced function"
+  end
+
   defp map_args(nil, args) do
     args
   end

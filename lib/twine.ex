@@ -37,6 +37,12 @@ defmodule Twine do
       opts = unquote(opts)
       {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
+      num_args =
+        unquote(Macro.escape(a))
+        |> Enum.count()
+
+      Internal.validate_mapper!(mapper, num_args)
+
       recon_opts =
         opts
         |> Keyword.take([:pid])

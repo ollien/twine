@@ -19,10 +19,18 @@ defmodule TwineTest do
   #    .iex.exs file.
   defmacro iex_run(do: block) do
     quote do
-      code =
-        "IO.puts(\"BEGIN TWINE TEST\")\n" <>
-          unquote(Macro.to_string(block)) <>
-          "\nSystem.halt(0)"
+      code = """
+        IO.puts("BEGIN TWINE TEST")
+        try do
+          #{unquote(Macro.to_string(block))}
+        catch
+          exc, reason -> 
+            IO.inspect({exc, reason}, label: "code threw error")
+            System.halt(1)
+        end
+
+        System.halt(0)
+      """
 
       Temp.track!()
       dir = Temp.mkdir!()
@@ -189,8 +197,6 @@ defmodule TwineTest do
           end
         end
 
-        parent = self()
-
         Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1,
           mapper: fn a, b, c ->
             [a * 1, b * 2, c * 3]
@@ -217,8 +223,6 @@ defmodule TwineTest do
           end
         end
 
-        parent = self()
-
         Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1,
           mapper: fn a, b, c ->
             {a * 1, b * 2, c * 3}
@@ -232,5 +236,34 @@ defmodule TwineTest do
       end
 
     assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
+  end
+
+  @tag :only
+  test "cannot pass a mapper of incorrect arity" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        try do
+          Twine.print_calls(
+            Blah.func(_arg1, _arg2, _arg3),
+            1,
+            mapper: fn a ->
+              {a}
+            end
+          )
+        rescue
+          # need to catch this so that the execution doesn't stop
+          exc -> IO.inspect(exc, label: "exception")
+        end
+      end
+
+    assert strip_ansii(output) =~ "mapper function must have the same arity as traced function"
   end
 end
