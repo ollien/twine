@@ -4,13 +4,13 @@ defmodule Twine.MixProject do
   def project do
     [
       app: :twine,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.15",
       description: "Ergonomically trace calls in Elixir with recon_trace",
       package: package(),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      package: package(),
+      package: package()
     ]
   end
 
@@ -24,7 +24,7 @@ defmodule Twine.MixProject do
   def package do
     [
       licenses: ["BSD-3-Clause"],
-      links:  %{"repostitory" => "https://github.com/ollien/twine"}
+      links: %{"repostitory" => "https://github.com/ollien/twine"}
     ]
   end
 
