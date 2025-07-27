@@ -10,7 +10,8 @@ defmodule Twine.MixProject do
       package: package(),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      package: package()
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -25,6 +26,15 @@ defmodule Twine.MixProject do
     [
       licenses: ["BSD-3-Clause"],
       links: %{"repostitory" => "https://github.com/ollien/twine"}
+    ]
+  end
+
+  def docs do
+    [
+      name: "Twine",
+      extras: [
+        "docs/twine.md"
+      ]
     ]
   end
 

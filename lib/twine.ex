@@ -1,6 +1,6 @@
 defmodule Twine do
   @moduledoc """
-  Twine is a function call tracer. See README.md for more details
+  Twine is a function call tracer that wraps `recon_trace`.
   """
   alias Twine.Internal
 
