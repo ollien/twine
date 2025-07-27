@@ -12,7 +12,10 @@ defmodule Twine do
     {m, f, a} = Macro.decompose_call(call)
 
     quote do
-      recon_opts = Keyword.put(unquote(opts), :formatter, &Twine.format/1)
+      recon_opts =
+        unquote(opts)
+        |> Keyword.put(:formatter, &Twine.format/1)
+        |> Keyword.put(:scope, :local)
 
       :recon_trace.calls(
         {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
