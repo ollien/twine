@@ -12,17 +12,24 @@ defmodule TwineTest do
   # That isn't so bad on its face. Here's the big stinky: we can't pipe input
   # into iex, so we:
   #
-  # 1) Place the file int .iex.exs in a temp directory - this file acts as if
+  # 1) Place the file .iex.exs in a temp directory - this file acts as if
   #    we typed the given text into iex (https://hexdocs.pm/iex/IEx.html#module-the-iex-exs-file)
   #
   # 2) Tell the command to use an IEX_HOME to consider this file a "global"
   #    .iex.exs file.
+  #
+  # 3) Within iex.exs, use Code.eval_string to ensure that failures to compile
+  #    do not result in the test completely hanging.
   defmacro iex_run(do: block) do
     quote do
+      # Base64 encode so we can insert it into the string without collision
+      encoded_code = Base.encode64(unquote(Macro.to_string(block)))
+
       code = """
         IO.puts("BEGIN TWINE TEST")
+        {:ok, code} = Base.decode64("#{encoded_code}")
         try do
-          #{unquote(Macro.to_string(block))}
+          Code.eval_string(code)
         catch
           exc, reason -> 
             IO.inspect({exc, reason}, label: "code threw error")
@@ -37,7 +44,7 @@ defmodule TwineTest do
       iex_file_path = Path.join(dir, ".iex.exs")
       File.write!(iex_file_path, code)
 
-      {out, 0} =
+      {out, _exit_code} =
         System.cmd("iex", ["-S", "mix"], env: [{"IEX_HOME", dir}], stderr_to_stdout: true)
 
       Regex.replace(~r/^.*BEGIN TWINE TEST\n/s, out, "", global: false)
@@ -310,7 +317,7 @@ defmodule TwineTest do
       refute strip_ansii(output) =~ "warning: variable \"arg1\" is unused"
     end
 
-    test "does not emit warnings for non-underscore prefixed names even in  structures" do
+    test "does not emit warnings for non-underscore prefixed names even instructures" do
       output =
         iex_run do
           require Twine
