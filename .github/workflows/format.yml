@@ -1,0 +1,21 @@
+name: Elixir Format Check
+
+on: [push]
+
+jobs:
+  format:
+    name: Check Elixir Formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.18"
+          otp-version: 28
+
+      - name: Check formatting
+        run: mix format --check-formatted
