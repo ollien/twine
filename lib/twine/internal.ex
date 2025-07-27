@@ -30,9 +30,14 @@ defmodule Twine.Internal do
   end
 
   def preprocess_args(args) do
-    Enum.map(args, fn arg ->
-      Macro.postwalk(arg, &suppress_identifier_warnings/1)
-    end)
+    with :ok <- validate_args(args) do
+      args =
+        Enum.map(args, fn arg ->
+          Macro.postwalk(arg, &suppress_identifier_warnings/1)
+        end)
+
+      {:ok, args}
+    end
   end
 
   defp make_format_fn(opts) do
@@ -79,6 +84,22 @@ defmodule Twine.Internal do
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
   end
 
+  defp validate_args(args) do
+    invalid =
+      args
+      |> Enum.map(&pinned_argument?/1)
+      |> Enum.any?()
+
+    # recon_trace's pattern matching does not support the pinning that elixir
+    # uses. Haven't dug into why, but it fails with a :badarg rather
+    # unceremoniously
+    if invalid do
+      {:error, "Call cannot contain a pattern that uses the pin operator (^)"}
+    else
+      :ok
+    end
+  end
+
   defp validate_mapper(nil, _num_args) do
     :ok
   end
@@ -87,7 +108,7 @@ defmodule Twine.Internal do
     :ok
   end
 
-  defp validate_mapper(_mapper, _num_args) do
+  defp validate_mapper(_mapper, num_args) when is_integer(num_args) do
     {:error, "Mapper function must have the same arity as traced function"}
   end
 
@@ -117,5 +138,13 @@ defmodule Twine.Internal do
 
   defp suppress_identifier_warnings(other) do
     other
+  end
+
+  defp pinned_argument?({:^, _meta, context}) when is_list(context) do
+    true
+  end
+
+  defp pinned_argument?(_other) do
+    false
   end
 end

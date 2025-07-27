@@ -333,6 +333,31 @@ defmodule TwineTest do
       refute strip_ansii(output) =~ "warning: variable \"e\" is unused"
       refute strip_ansii(output) =~ "warning: variable \"f\" is unused"
     end
+
+    test "cannot pass call with pinned variable" do
+      output =
+        iex_run do
+          require Twine
+
+          defmodule Blah do
+            def func(_argument1, _argument2, _argument3) do
+              nil
+            end
+          end
+
+          x = 5
+
+          Twine.print_calls(
+            Blah.func(^x, _arg2, _arg3),
+            1,
+            mapper: fn a ->
+              {a}
+            end
+          )
+        end
+
+      assert strip_ansii(output) =~ "Call cannot contain a pattern that uses the pin operator (^)"
+    end
   end
 
   describe "clear" do

@@ -33,16 +33,25 @@ defmodule Twine do
   """
   defmacro print_calls(call, rate, opts \\ []) do
     {m, f, a} = Macro.decompose_call(call)
-    a = Internal.preprocess_args(a)
-    num_args = Enum.count(a)
 
-    quote do
-      Internal.do_print_calls(
-        {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
-        unquote(num_args),
-        unquote(rate),
-        unquote(opts)
-      )
+    with {:ok, a} <- Internal.preprocess_args(a) do
+      num_args = Enum.count(a)
+
+      quote do
+        Internal.do_print_calls(
+          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+          unquote(num_args),
+          unquote(rate),
+          unquote(opts)
+        )
+      end
+    else
+      {:error, error} ->
+        quote do
+          IO.puts("#{IO.ANSI.red()}#{unquote(error)}#{IO.ANSI.reset()}")
+
+          :error
+        end
     end
   end
 
