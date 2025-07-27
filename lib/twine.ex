@@ -34,31 +34,15 @@ defmodule Twine do
   defmacro print_calls(call, rate, opts \\ []) do
     {m, f, a} = Macro.decompose_call(call)
     a = Internal.preprocess_args(a)
+    num_args = Enum.count(a)
 
     quote do
-      opts = unquote(opts)
-      {mapper, opts} = Keyword.pop(opts, :mapper, nil)
-
-      num_args =
-        unquote(Macro.escape(a))
-        |> Enum.count()
-
-      Internal.validate_mapper!(mapper, num_args)
-
-      recon_opts =
-        opts
-        |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, Internal.make_format_fn(mapper: mapper))
-        |> Keyword.put(:scope, :local)
-
-      matches =
-        :recon_trace.calls(
-          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
-          unquote(rate),
-          recon_opts
-        )
-
-      Internal.print_match_output(matches)
+      Internal.do_print_calls(
+        {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+        unquote(num_args),
+        unquote(rate),
+        unquote(opts)
+      )
     end
   end
 

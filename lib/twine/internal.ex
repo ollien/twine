@@ -3,30 +3,30 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
-  def make_format_fn(opts) do
-    fn {:trace, pid, :call, {module, function, args}} ->
-      mapper = Keyword.get(opts, :mapper)
+  def do_print_calls(func, num_args, rate, opts) do
+    {mapper, opts} = Keyword.pop(opts, :mapper, nil)
+    validate_mapper!(mapper, num_args)
 
-      format(pid, {module, function, map_args(mapper, args)})
-    end
+    recon_opts =
+      opts
+      |> Keyword.take([:pid])
+      |> Keyword.put(:formatter, make_format_fn(mapper: mapper))
+      |> Keyword.put(:scope, :local)
+
+    matches =
+      :recon_trace.calls(
+        func,
+        rate,
+        recon_opts
+      )
+
+    print_match_output(matches)
   end
 
   def preprocess_args(args) do
     Enum.map(args, fn arg ->
       Macro.postwalk(arg, &suppress_identifier_warnings/1)
     end)
-  end
-
-  def validate_mapper!(nil, _num_args) do
-    :ok
-  end
-
-  def validate_mapper!(mapper, num_args) when is_function(mapper, num_args) do
-    :ok
-  end
-
-  def validate_mapper!(_mapper, _num_args) do
-    raise "mapper function must have the same arity as traced function"
   end
 
   def print_match_output(0) do
@@ -41,6 +41,14 @@ defmodule Twine.Internal do
     IO.puts("#{IO.ANSI.green()}#{n} function(s) matched, waiting for calls...#{IO.ANSI.reset()}")
 
     :ok
+  end
+
+  defp make_format_fn(opts) do
+    fn {:trace, pid, :call, {module, function, args}} ->
+      mapper = Keyword.get(opts, :mapper)
+
+      format(pid, {module, function, map_args(mapper, args)})
+    end
   end
 
   defp map_args(nil, args) do
@@ -79,6 +87,18 @@ defmodule Twine.Internal do
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
   end
 
+  defp validate_mapper!(nil, _num_args) do
+    :ok
+  end
+
+  defp validate_mapper!(mapper, num_args) when is_function(mapper, num_args) do
+    :ok
+  end
+
+  defp validate_mapper!(_mapper, _num_args) do
+    raise "mapper function must have the same arity as traced function"
+  end
+
   defp suppress_identifier_warnings({name, meta, context})
        when is_atom(name) and is_atom(context) do
     # Prepend an underscore to suppress warnings
@@ -92,4 +112,5 @@ defmodule Twine.Internal do
   defp suppress_identifier_warnings(other) do
     other
   end
+
 end
