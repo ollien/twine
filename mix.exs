@@ -22,8 +22,7 @@ defmodule Twine.MixProject do
   defp deps do
     [
       {:recon, "~> 2.5.6"},
-      {:temp, "~> 0.4.9", only: :test},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:temp, "~> 0.4.9", only: :test}
     ]
   end
 end

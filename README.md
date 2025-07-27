@@ -1,6 +1,6 @@
 # Twine
 
-Twine is a tracing tool based on Ferd's wonderful [`recon_trace`}](https://ferd.github.io/recon/recon_trace.html).
+Twine is a tracing tool based on Ferd's wonderful [`recon_trace`](https://ferd.github.io/recon/recon_trace.html).
 
 `recon_trace` is great for providing a safe way to debug live BEAM systems,
 but can be a little unweidly, especially on Elixir systems. `Twine` is a wrapper
