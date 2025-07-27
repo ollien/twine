@@ -5,42 +5,34 @@ defmodule Twine.Internal do
 
   def do_print_calls(func, num_args, rate, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
-    validate_mapper!(mapper, num_args)
 
-    recon_opts =
-      opts
-      |> Keyword.take([:pid])
-      |> Keyword.put(:formatter, make_format_fn(mapper: mapper))
-      |> Keyword.put(:scope, :local)
+    with :ok <- validate_mapper(mapper, num_args) do
+      recon_opts =
+        opts
+        |> Keyword.take([:pid])
+        |> Keyword.put(:formatter, make_format_fn(mapper: mapper))
+        |> Keyword.put(:scope, :local)
 
-    matches =
-      :recon_trace.calls(
-        func,
-        rate,
-        recon_opts
-      )
+      matches =
+        :recon_trace.calls(
+          func,
+          rate,
+          recon_opts
+        )
 
-    print_match_output(matches)
+      match_output(matches)
+    else
+      {:error, error} ->
+        IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
+
+        :error
+    end
   end
 
   def preprocess_args(args) do
     Enum.map(args, fn arg ->
       Macro.postwalk(arg, &suppress_identifier_warnings/1)
     end)
-  end
-
-  def print_match_output(0) do
-    IO.puts(
-      "#{IO.ANSI.red()}No functions matched, check that it is specified correctly#{IO.ANSI.reset()}"
-    )
-
-    :error
-  end
-
-  def print_match_output(n) do
-    IO.puts("#{IO.ANSI.green()}#{n} function(s) matched, waiting for calls...#{IO.ANSI.reset()}")
-
-    :ok
   end
 
   defp make_format_fn(opts) do
@@ -87,16 +79,30 @@ defmodule Twine.Internal do
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
   end
 
-  defp validate_mapper!(nil, _num_args) do
+  defp validate_mapper(nil, _num_args) do
     :ok
   end
 
-  defp validate_mapper!(mapper, num_args) when is_function(mapper, num_args) do
+  defp validate_mapper(mapper, num_args) when is_function(mapper, num_args) do
     :ok
   end
 
-  defp validate_mapper!(_mapper, _num_args) do
-    raise "mapper function must have the same arity as traced function"
+  defp validate_mapper(_mapper, _num_args) do
+    {:error, "Mapper function must have the same arity as traced function"}
+  end
+
+  def match_output(0) do
+    IO.puts(
+      "#{IO.ANSI.red()}No functions matched, check that it is specified correctly#{IO.ANSI.reset()}"
+    )
+
+    :error
+  end
+
+  def match_output(n) do
+    IO.puts("#{IO.ANSI.green()}#{n} function(s) matched, waiting for calls...#{IO.ANSI.reset()}")
+
+    :ok
   end
 
   defp suppress_identifier_warnings({name, meta, context})
@@ -112,5 +118,4 @@ defmodule Twine.Internal do
   defp suppress_identifier_warnings(other) do
     other
   end
-
 end

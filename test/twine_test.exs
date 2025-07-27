@@ -255,21 +255,16 @@ defmodule TwineTest do
             end
           end
 
-          try do
-            Twine.print_calls(
-              Blah.func(_arg1, _arg2, _arg3),
-              1,
-              mapper: fn a ->
-                {a}
-              end
-            )
-          rescue
-            # need to catch this so that the execution doesn't stop
-            exc -> IO.inspect(exc, label: "exception")
-          end
+          Twine.print_calls(
+            Blah.func(_arg1, _arg2, _arg3),
+            1,
+            mapper: fn a ->
+              {a}
+            end
+          )
         end
 
-      assert strip_ansii(output) =~ "mapper function must have the same arity as traced function"
+      assert strip_ansii(output) =~ "Mapper function must have the same arity as traced function"
     end
 
     test "informs user if call is missing" do
