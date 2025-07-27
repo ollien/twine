@@ -238,7 +238,6 @@ defmodule TwineTest do
     assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
   end
 
-  @tag :only
   test "cannot pass a mapper of incorrect arity" do
     output =
       iex_run do
@@ -265,5 +264,33 @@ defmodule TwineTest do
       end
 
     assert strip_ansii(output) =~ "mapper function must have the same arity as traced function"
+  end
+
+  test "informs user if call is missing" do
+    output =
+      iex_run do
+        require Twine
+
+        Twine.print_calls(Blah.func(), 1)
+      end
+
+    assert strip_ansii(output) =~ "No functions matched, check that it is specified correctly"
+  end
+
+  test "informs user call is matched" do
+    output =
+      iex_run do
+        require Twine
+
+        defmodule Blah do
+          def func(_argument1, _argument2, _argument3) do
+            nil
+          end
+        end
+
+        Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1)
+      end
+
+    assert strip_ansii(output) =~ "1 function(s) matched, waiting for calls..."
   end
 end

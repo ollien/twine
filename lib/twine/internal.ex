@@ -23,6 +23,20 @@ defmodule Twine.Internal do
     raise "mapper function must have the same arity as traced function"
   end
 
+  def print_match_output(0) do
+    IO.puts(
+      "#{IO.ANSI.red()}No functions matched, check that it is specified correctly#{IO.ANSI.reset()}"
+    )
+
+    :error
+  end
+
+  def print_match_output(n) do
+    IO.puts("#{IO.ANSI.green()}#{n} function(s) matched, waiting for calls...#{IO.ANSI.reset()}")
+
+    :ok
+  end
+
   defp map_args(nil, args) do
     args
   end

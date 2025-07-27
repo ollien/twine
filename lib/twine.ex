@@ -49,11 +49,14 @@ defmodule Twine do
         |> Keyword.put(:formatter, Internal.make_format_fn(mapper: mapper))
         |> Keyword.put(:scope, :local)
 
-      :recon_trace.calls(
-        {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
-        unquote(rate),
-        recon_opts
-      )
+      matches =
+        :recon_trace.calls(
+          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+          unquote(rate),
+          recon_opts
+        )
+
+      Internal.print_match_output(matches)
     end
   end
 end
