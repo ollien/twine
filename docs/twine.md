@@ -177,3 +177,24 @@ iex>
 
 When you are done tracing, you can simply call `Twine.clear()` to remove all
 tracepoints.
+
+## Troubleshooting
+
+### No calls are printing, even though I know they're running!
+First, make sure you're matching the correct process and/or function.
+
+Assuming you've gotten both of these right, it is possible that `recon_trace`
+did in fact match your call correctly, but it is taking time to generate the
+output. Depending on the size of your call, this may take a couple of minutes. 
+
+### Why can't I use the pin operator?
+If you've attempted to use the pin operator when specifying a call, you've
+likely gotten this error
+
+```
+Call cannot contain a pattern that uses the pin operator (^)
+```
+
+Unfortunately, `recon_trace` does not support the pin operator when it converts
+functions to matchspecs. This is a limitation of how Twine wraps
+`recon_trace`.
