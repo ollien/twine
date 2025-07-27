@@ -52,7 +52,7 @@ defmodule TwineTest do
             end
           end
 
-          Twine.print_calls(Blah.func(a, b, c), 1)
+          Twine.print_calls(Blah.func(_a, _b, _c), 1)
           Blah.func(1, 2, 3)
 
           # Give recon_trace some time to run
@@ -77,7 +77,7 @@ defmodule TwineTest do
             end
           end
 
-          Twine.print_calls(Blah.func(a, b, c), 1)
+          Twine.print_calls(Blah.func(_a, _b, _c), 1)
           Blah.doit()
 
           # Give recon_trace some time to run
@@ -102,7 +102,7 @@ defmodule TwineTest do
             end
           end
 
-          Twine.print_calls(Blah.func(1, arg1, arg2), 1)
+          Twine.print_calls(Blah.func(1, _b, _c), 1)
           Blah.doit()
 
           # Give recon_trace some time to run
@@ -161,7 +161,7 @@ defmodule TwineTest do
             send(parent, :done)
           end)
 
-        Twine.print_calls(Blah.func(arg1, arg2, arg3), 2, pid: pid)
+        Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 2, pid: pid)
         send(pid, :begin)
 
         Blah.func(0, 0, 0)
