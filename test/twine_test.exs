@@ -18,7 +18,7 @@ defmodule TwineTest do
   # 2) Tell the command to use an IEX_HOME to consider this file a "global"
   #    .iex.exs file.
   #
-  # 3) Within iex.exs, use Code.eval_string to ensure that failures to compile
+  # 3) Within .iex.exs, use Code.eval_string to ensure that failures to compile
   #    do not result in the test completely hanging.
   defmacro iex_run(do: block) do
     quote do
@@ -51,7 +51,7 @@ defmodule TwineTest do
     end
   end
 
-  defp strip_ansii(str) do
+  defp strip_ansi(str) do
     Regex.replace(~r/\x1b\[[0-9;]*m/, str, "")
   end
 
@@ -74,7 +74,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+      assert strip_ansi(output) =~ "Blah.func(1, 2, 3)"
     end
 
     test "prints invocations to local function" do
@@ -99,7 +99,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+      assert strip_ansi(output) =~ "Blah.func(1, 2, 3)"
     end
 
     test "allows matching patterns in the trace" do
@@ -124,7 +124,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+      assert strip_ansi(output) =~ "Blah.func(1, 2, 3)"
     end
 
     test "does not print anything if the pattern does not match" do
@@ -149,7 +149,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      refute strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+      refute strip_ansi(output) =~ "Blah.func(1, 2, 3)"
     end
 
     test "allows capturing of single pids" do
@@ -188,8 +188,8 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 2, 3)"
-      refute strip_ansii(output) =~ "Blah.func(0, 0, 0)"
+      assert strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+      refute strip_ansi(output) =~ "Blah.func(0, 0, 0)"
     end
 
     test "allows mapping of args" do
@@ -215,7 +215,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
+      assert strip_ansi(output) =~ "Blah.func(1, 4, 9)"
     end
 
     test "allows mapping of args with tuple return value" do
@@ -241,7 +241,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      assert strip_ansii(output) =~ "Blah.func(1, 4, 9)"
+      assert strip_ansi(output) =~ "Blah.func(1, 4, 9)"
     end
 
     test "cannot pass a mapper of incorrect arity" do
@@ -264,7 +264,7 @@ defmodule TwineTest do
           )
         end
 
-      assert strip_ansii(output) =~ "Mapper function must have the same arity as traced function"
+      assert strip_ansi(output) =~ "Mapper function must have the same arity as traced function"
     end
 
     test "informs user if call is missing" do
@@ -275,7 +275,7 @@ defmodule TwineTest do
           Twine.print_calls(Blah.func(), 1)
         end
 
-      assert strip_ansii(output) =~ "No functions matched, check that it is specified correctly"
+      assert strip_ansi(output) =~ "No functions matched, check that it is specified correctly"
     end
 
     test "informs user call is matched" do
@@ -292,7 +292,7 @@ defmodule TwineTest do
           Twine.print_calls(Blah.func(_arg1, _arg2, _arg3), 1)
         end
 
-      assert strip_ansii(output) =~ "1 function(s) matched, waiting for calls..."
+      assert strip_ansi(output) =~ "1 function(s) matched, waiting for calls..."
     end
 
     test "does not emit warnings for non-underscore prefixed names" do
@@ -309,7 +309,7 @@ defmodule TwineTest do
           Twine.print_calls(Blah.func(arg1, _arg2, _arg3), 1)
         end
 
-      refute strip_ansii(output) =~ "warning: variable \"arg1\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"arg1\" is unused"
     end
 
     test "does not emit warnings for non-underscore prefixed names even instructures" do
@@ -326,12 +326,12 @@ defmodule TwineTest do
           Twine.print_calls(Blah.func({a, [b, c], %{"key" => [e, f]}}, _arg2, _arg3), 1)
         end
 
-      refute strip_ansii(output) =~ "warning: variable \"a\" is unused"
-      refute strip_ansii(output) =~ "warning: variable \"b\" is unused"
-      refute strip_ansii(output) =~ "warning: variable \"c\" is unused"
-      refute strip_ansii(output) =~ "warning: variable \"d\" is unused"
-      refute strip_ansii(output) =~ "warning: variable \"e\" is unused"
-      refute strip_ansii(output) =~ "warning: variable \"f\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"a\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"b\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"c\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"d\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"e\" is unused"
+      refute strip_ansi(output) =~ "warning: variable \"f\" is unused"
     end
 
     test "cannot pass call with pinned variable" do
@@ -356,7 +356,7 @@ defmodule TwineTest do
           )
         end
 
-      assert strip_ansii(output) =~ "Call cannot contain a pattern that uses the pin operator (^)"
+      assert strip_ansi(output) =~ "Call cannot contain a pattern that uses the pin operator (^)"
     end
   end
 
@@ -380,7 +380,7 @@ defmodule TwineTest do
           Process.sleep(100)
         end
 
-      refute strip_ansii(output) =~ "Blah.func(1, 2, 3)"
+      refute strip_ansi(output) =~ "Blah.func(1, 2, 3)"
     end
   end
 end

@@ -70,15 +70,17 @@ defmodule Twine.Internal do
 
     f_args =
       args
-      |> Enum.map(
-        &(inspect(&1,
-            syntax_colors: IO.ANSI.syntax_colors(),
-            pretty: true,
-            limit: :infinity,
-            printable_limit: :infinity
-          )
-          |> String.replace("~", "~~"))
-      )
+      |> Enum.map(fn arg ->
+        arg
+        |> inspect(
+          syntax_colors: IO.ANSI.syntax_colors(),
+          pretty: true,
+          limit: :infinity,
+          printable_limit: :infinity
+        )
+        # We escape tildes because recon_trace uses io:format, which uses ~ as an escape sequence.
+        |> String.replace("~", "~~")
+      end)
       |> Enum.join(", ")
 
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
