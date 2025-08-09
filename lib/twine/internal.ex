@@ -19,6 +19,8 @@ defmodule Twine.Internal do
   end
 
   def do_recv_calls(func, num_args, rate, opts) do
+    warn_about_memory_usage(rate)
+
     me = self()
 
     do_trace_calls(
@@ -30,6 +32,16 @@ defmodule Twine.Internal do
       end,
       opts
     )
+  end
+
+  defp warn_about_memory_usage({_count, _time}) do
+    IO.puts(
+      "#{IO.ANSI.yellow()}Using recv_calls with a rate can consume unbounded memory if messages are not consumed fast enough. You can use Twine.clear() to stop the flow of messages at any point.#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp warn_about_memory_usage(_count) do
+    :ok
   end
 
   defp preprocess_args(args) do
