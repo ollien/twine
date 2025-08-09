@@ -23,7 +23,19 @@ done by running either
   `iex` available on the node.
 
 
-Once in the shell, you must `require Twine` in order to use its macros.
+Once in the shell, you must `require Twine` in order to use its macros. You have
+two options to trace calls
+
+ - `Twine.print_calls/2`, which will print calls to the group leader. This is 
+   typically what you want if you just want to see what is being called and 
+   with what arguments.
+ - `Twine.recv_calls/2`, which will send calls to the iex shell's process. These
+ messages will be of the form `{pid, {module, function, arguments}}`, This can
+ be useful if you need to have programmatic access to the call data once it has
+ been performed. 
+
+The examples below focus primarily on `Twine.print_calls/2`, but the two have 
+an identical set of arguments and are thus interchangeable.
 
 When specifying a function to trace, you must provide the function to trace, and
 limit on the number of calls you trace. The limit can be specified in one of two
@@ -42,6 +54,10 @@ to bypass the limits by specifying large values like `9999` or `{1000, 1}`.
 Doing so will negate many of the safety benefits, and can lead to a node crash.
 Typically, I have found that I only need to print out a handful (one to five) of
 traces to understand what is happening.
+
+If you choose to combine a rate with `recv_calls`, **you should be careful not
+to let these pile up in the process mailbox, or you can consume unbounded
+amounts of memory.**
 
 
 ### Tracing All Calls To A Function

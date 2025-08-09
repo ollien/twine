@@ -24,8 +24,8 @@ defmodule Twine do
   Options:
   - `pid`: the pid to print calls for. If omitted, this will run for all pids
   on the system
-  - `mapper`: A function to map the output before printing it. This can be useful
-  if you are tracing a call on a function that has a very large argument
+  - `mapper`: A function to map the output before printing it. This can be 
+  useful if you are tracing a call on a function that has a very large argument
   (such as a `GenServer`'s state), and want to reduce it down
   before printing it. This function must have the same arity as
   the captured function, and return a list or tuple of the mapped
@@ -48,6 +48,11 @@ defmodule Twine do
     end)
   end
 
+  @doc """
+  Identical to print_calls, but instead of printing the calls, it sends them
+  to the calling process. This will be of the form
+  `{pid, {module, function, arguments}}`.
+  """
   defmacro recv_calls(call, rate, opts \\ []) do
     {m, f, a} = Macro.decompose_call(call)
 
