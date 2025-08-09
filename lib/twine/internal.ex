@@ -15,13 +15,42 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(func, num_args, rate, opts) do
+    do_trace_calls(func, num_args, rate, &format_print/2, opts)
+  end
+
+  def do_recv_calls(func, num_args, rate, opts) do
+    me = self()
+
+    do_trace_calls(
+      func,
+      num_args,
+      rate,
+      fn pid, mfa ->
+        format_recv(me, pid, mfa)
+      end,
+      opts
+    )
+  end
+
+  defp preprocess_args(args) do
+    with :ok <- validate_args(args) do
+      args =
+        Enum.map(args, fn arg ->
+          Macro.postwalk(arg, &suppress_identifier_warnings/1)
+        end)
+
+      {:ok, args}
+    end
+  end
+
+  defp do_trace_calls(func, num_args, rate, format_action, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
     with :ok <- validate_mapper(mapper, num_args) do
       recon_opts =
         opts
         |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, make_format_fn(mapper: mapper))
+        |> Keyword.put(:formatter, make_format_fn(format_action, mapper))
         |> Keyword.put(:scope, :local)
 
       matches =
@@ -40,22 +69,9 @@ defmodule Twine.Internal do
     end
   end
 
-  defp preprocess_args(args) do
-    with :ok <- validate_args(args) do
-      args =
-        Enum.map(args, fn arg ->
-          Macro.postwalk(arg, &suppress_identifier_warnings/1)
-        end)
-
-      {:ok, args}
-    end
-  end
-
-  defp make_format_fn(opts) do
+  defp make_format_fn(action, mapper) do
     fn {:trace, pid, :call, {module, function, args}} ->
-      mapper = Keyword.get(opts, :mapper)
-
-      format(pid, {module, function, map_args(mapper, args)})
+      action.(pid, {module, function, map_args(mapper, args)})
     end
   end
 
@@ -72,7 +88,7 @@ defmodule Twine.Internal do
     end
   end
 
-  defp format(pid, {module, function, args}) do
+  defp format_print(pid, {module, function, args}) do
     f_pid = "#{IO.ANSI.light_red()}#{inspect(pid)}#{IO.ANSI.reset()}"
 
     # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
@@ -95,6 +111,13 @@ defmodule Twine.Internal do
       |> Enum.join(", ")
 
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
+  end
+
+  defp format_recv(recv_pid, call_pid, mfa) do
+    send(recv_pid, {call_pid, mfa})
+
+    # Recon allows us to return an empty string and it won't do anything with it
+    ""
   end
 
   defp validate_args(args) do

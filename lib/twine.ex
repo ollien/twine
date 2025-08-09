@@ -48,6 +48,23 @@ defmodule Twine do
     end)
   end
 
+  defmacro recv_calls(call, rate, opts \\ []) do
+    {m, f, a} = Macro.decompose_call(call)
+
+    Internal.run(a, fn a ->
+      num_args = Enum.count(a)
+
+      quote do
+        Internal.do_recv_calls(
+          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+          unquote(num_args),
+          unquote(rate),
+          unquote(opts)
+        )
+      end
+    end)
+  end
+
   @doc """
   Clear all existing traces.
   """
