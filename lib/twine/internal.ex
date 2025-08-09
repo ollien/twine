@@ -3,6 +3,17 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
+  def run(args, func) do
+    with {:ok, args} <- preprocess_args(args) do
+      func.(args)
+    else
+      {:error, error} ->
+        IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
+
+        :error
+    end
+  end
+
   def do_print_calls(func, num_args, rate, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
@@ -29,7 +40,7 @@ defmodule Twine.Internal do
     end
   end
 
-  def preprocess_args(args) do
+  defp preprocess_args(args) do
     with :ok <- validate_args(args) do
       args =
         Enum.map(args, fn arg ->

@@ -34,7 +34,7 @@ defmodule Twine do
   defmacro print_calls(call, rate, opts \\ []) do
     {m, f, a} = Macro.decompose_call(call)
 
-    with {:ok, a} <- Internal.preprocess_args(a) do
+    Internal.run(a, fn a ->
       num_args = Enum.count(a)
 
       quote do
@@ -45,14 +45,7 @@ defmodule Twine do
           unquote(opts)
         )
       end
-    else
-      {:error, error} ->
-        quote do
-          IO.puts("#{IO.ANSI.red()}#{unquote(error)}#{IO.ANSI.reset()}")
-
-          :error
-        end
-    end
+    end)
   end
 
   @doc """
