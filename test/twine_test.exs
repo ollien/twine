@@ -442,7 +442,6 @@ end
 
 defmodule Twine.PrintCallsTest do
   use TraceMacroCase,
-    async: true,
     macro_name: :print_calls,
     generate_output:
       (quote do
@@ -453,7 +452,6 @@ end
 
 defmodule Twine.RecvCallsTest do
   use TraceMacroCase,
-    async: true,
     macro_name: :recv_calls,
     # We can't use recursion in this macro expansion, so we cheat a little bit by using
     # Stream.repeatedly and Enum.reduce_while
