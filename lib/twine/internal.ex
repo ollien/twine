@@ -5,8 +5,9 @@ defmodule Twine.Internal do
 
   def run(call_ast, func) do
     {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
+    skip_preprocessing_args = args_to_skip_preprocessing(a, guard_clause)
 
-    with {:ok, a} <- preprocess_args(a) do
+    with {:ok, a} <- preprocess_args(a, skip_preprocessing_args) do
       matchspec_ast = make_matchspec_ast({m, f, a}, guard_clause)
       func.(matchspec_ast, Enum.count(a))
     else
@@ -52,14 +53,13 @@ defmodule Twine.Internal do
             fn unquote(a) when unquote(guard_clause) -> :return_trace end
           }
         end
-        |> dbg
     end
   end
 
   def decompose_match_call({:when, _meta, [call, condition]}) do
     {
       Macro.decompose_call(call),
-      Macro.postwalk(condition, &suppress_identifier_warnings/1)
+      condition
     }
   end
 
@@ -80,11 +80,11 @@ defmodule Twine.Internal do
     :ok
   end
 
-  defp preprocess_args(args) do
+  defp preprocess_args(args, ignore) do
     with :ok <- validate_args(args) do
       args =
         Enum.map(args, fn arg ->
-          Macro.postwalk(arg, &suppress_identifier_warnings/1)
+          Macro.postwalk(arg, fn ast -> suppress_identifier_warnings(ast, ignore) end)
         end)
 
       {:ok, args}
@@ -210,17 +210,46 @@ defmodule Twine.Internal do
     :ok
   end
 
-  defp suppress_identifier_warnings({name, meta, context})
+  defp args_to_skip_preprocessing(_args, nil) do
+    []
+  end
+
+  defp args_to_skip_preprocessing(args, guard_clause) do
+    guard_identifiers = extract_identifiers(guard_clause)
+    args_identifiers = extract_identifiers(args)
+
+    MapSet.intersection(guard_identifiers, args_identifiers)
+  end
+
+  defp extract_identifiers(ast) do
+    {_new_ast, acc} =
+      Macro.traverse(
+        ast,
+        MapSet.new(),
+        fn a, b -> {a, b} end,
+        fn
+          {name, meta, context}, acc when is_atom(name) and is_atom(context) ->
+            {{name, meta, context}, MapSet.put(acc, name)}
+
+          other, acc ->
+            {other, acc}
+        end
+      )
+
+    acc
+  end
+
+  defp suppress_identifier_warnings({name, meta, context}, ignore)
        when is_atom(name) and is_atom(context) do
     # Prepend an underscore to suppress warnings
-    if not String.starts_with?(Atom.to_string(name), "_") do
+    if not String.starts_with?(Atom.to_string(name), "_") and not Enum.member?(ignore, name) do
       {String.to_atom("_#{name}"), meta, context}
     else
       {name, meta, context}
     end
   end
 
-  defp suppress_identifier_warnings(other) do
+  defp suppress_identifier_warnings(other, _ignore) do
     other
   end
 
