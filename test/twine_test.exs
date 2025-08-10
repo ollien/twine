@@ -389,6 +389,33 @@ defmodule TraceMacroCase do
                  "Call cannot contain a pattern that uses the pin operator (^)"
       end
 
+      test "cannot pass guard with variables not in argument patterns" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            x = 5
+            y = 6
+
+            Twine.unquote(macro_name)(
+              Blah.func(z, _arg2, _arg3) when y == x or y == z,
+              1,
+              mapper: fn a ->
+                {a}
+              end
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Identifiers in guard must exist in argument pattern. Invalid identifiers: x, y"
+      end
+
       test "calling clear stops tracing" do
         output =
           TestHelper.iex_run do

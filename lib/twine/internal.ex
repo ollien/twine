@@ -7,7 +7,8 @@ defmodule Twine.Internal do
     {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
     skip_preprocessing_args = args_to_skip_preprocessing(a, guard_clause)
 
-    with {:ok, a} <- preprocess_args(a, skip_preprocessing_args) do
+    with {:ok, a} <- preprocess_args(a, skip_preprocessing_args),
+         :ok <- validate_guard_identifiers(a, guard_clause) do
       matchspec_ast = make_matchspec_ast({m, f, a}, guard_clause)
       func.(matchspec_ast, Enum.count(a))
     else
@@ -90,6 +91,25 @@ defmodule Twine.Internal do
         end)
 
       {:ok, args}
+    end
+  end
+
+  defp validate_guard_identifiers(_args, nil) do
+    :ok
+  end
+
+  defp validate_guard_identifiers(args, guard_clause) do
+    guard_identifiers = extract_identifiers(guard_clause)
+    args_identifiers = extract_identifiers(args)
+
+    missing_from_args = MapSet.difference(guard_identifiers, args_identifiers)
+
+    if Enum.empty?(missing_from_args) do
+      :ok
+    else
+      {:error,
+       "Identifiers in guard must exist in argument pattern. Invalid identifiers: " <>
+         Enum.join(missing_from_args, ", ")}
     end
   end
 
