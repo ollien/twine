@@ -38,7 +38,17 @@ defmodule Twine.Internal do
     )
   end
 
-  def make_matchspec_ast({m, f, a}, guard_clause) do
+  defp warn_about_memory_usage({_count, _time}) do
+    IO.puts(
+      "#{IO.ANSI.yellow()}Using recv_calls with a rate can consume unbounded memory if messages are not consumed fast enough. You can use Twine.clear() to stop the flow of messages at any point.#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp warn_about_memory_usage(_count) do
+    :ok
+  end
+
+  defp make_matchspec_ast({m, f, a}, guard_clause) do
     case guard_clause do
       nil ->
         quote do
@@ -56,28 +66,20 @@ defmodule Twine.Internal do
     end
   end
 
-  def decompose_match_call({:when, _meta, [call, condition]}) do
+  # End list will always be two elements
+  # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/src/https://github.com/elixir-lang/elixir/blob/f93919f54a79fb523315e84c6f46899c66fe03fe/lib/elixir/src/elixir_parser.yrl#L1153-L1159elixir_parser.yrl#L1153-L1159
+  defp decompose_match_call({:when, _meta, [call, condition]}) do
     {
       Macro.decompose_call(call),
       condition
     }
   end
 
-  def decompose_match_call(call) do
+  defp decompose_match_call(call) do
     {
       Macro.decompose_call(call),
       nil
     }
-  end
-
-  defp warn_about_memory_usage({_count, _time}) do
-    IO.puts(
-      "#{IO.ANSI.yellow()}Using recv_calls with a rate can consume unbounded memory if messages are not consumed fast enough. You can use Twine.clear() to stop the flow of messages at any point.#{IO.ANSI.reset()}"
-    )
-  end
-
-  defp warn_about_memory_usage(_count) do
-    :ok
   end
 
   defp preprocess_args(args, ignore) do

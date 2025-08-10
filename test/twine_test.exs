@@ -84,6 +84,30 @@ defmodule TraceMacroCase do
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
       end
 
+      test "allows matching guards in the trace" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+
+              def doit() do
+                func(1, 2, 3)
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(a, _b, _c) when is_integer(a), 1)
+            Blah.doit()
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+      end
+
       test "does not print anything if the pattern does not match" do
         output =
           TestHelper.iex_run do
@@ -100,6 +124,30 @@ defmodule TraceMacroCase do
             end
 
             Twine.unquote(macro_name)(Blah.func(0, 0, 0), 1)
+            Blah.doit()
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+      end
+
+      test "does not print anything if the guard does not match" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+
+              def doit() do
+                func(1, 2, 3)
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(a, _b, _c) when is_nil(a), 1)
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -269,7 +317,7 @@ defmodule TraceMacroCase do
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"arg1\" is unused"
       end
 
-      test "does not emit warnings for non-underscore prefixed names even instructures" do
+      test "does not emit warnings for non-underscore prefixed names even in structures" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -289,6 +337,30 @@ defmodule TraceMacroCase do
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"d\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"e\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"f\" is unused"
+      end
+
+      test "does not emit warnings for names being used in guards" do
+        # Covers the case of there being an intersection of variables in guards
+        # and args. The naive approach resulted in warnings from trying to reuse
+        # the "suppressed" variables
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              Blah.func(arg1, arg2, _arg3) when is_integer(arg1) and not is_nil(arg2),
+              1
+            )
+          end
+
+        refute TestHelper.strip_ansi(output) =~
+                 "The underscored variable \"_arg1\" is used after being set."
       end
 
       test "cannot pass call with pinned variable" do
