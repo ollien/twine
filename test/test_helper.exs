@@ -1,5 +1,5 @@
 defmodule TestHelper do
-  # This is incredibly hacky. :reocn_trace does not allow us to actually use
+  # This is incredibly hacky. :recon_trace does not allow us to actually use
   # calls unless the function passed to it is defined in a shell... so we
   # shell out to iex.
   #
