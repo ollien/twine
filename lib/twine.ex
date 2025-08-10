@@ -45,8 +45,8 @@ defmodule Twine do
   end
 
   @doc """
-  Identical to print_calls, but instead of printing the calls, it sends them
-  to the calling process. This will be of the form
+  Identical to `print_calls/2`, but instead of printing the calls, it sends
+  them to the calling process. This will be of the form
   `{pid, {module, function, arguments}}`.
   """
   defmacro recv_calls(call, rate, opts \\ []) do
