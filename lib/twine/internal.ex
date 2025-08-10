@@ -3,9 +3,12 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
-  def run(args, func) do
-    with {:ok, args} <- preprocess_args(args) do
-      func.(args)
+  def run(call_ast, func) do
+    {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
+
+    with {:ok, a} <- preprocess_args(a) do
+      matchspec_ast = make_matchspec_ast({m, f, a}, guard_clause)
+      func.(matchspec_ast, Enum.count(a))
     else
       {:error, error} ->
         IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
@@ -32,6 +35,39 @@ defmodule Twine.Internal do
       end,
       opts
     )
+  end
+
+  def make_matchspec_ast({m, f, a}, guard_clause) do
+    case guard_clause do
+      nil ->
+        quote do
+          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end}
+        end
+
+      guard_clause ->
+        quote do
+          {
+            unquote(m),
+            unquote(f),
+            fn unquote(a) when unquote(guard_clause) -> :return_trace end
+          }
+        end
+        |> dbg
+    end
+  end
+
+  def decompose_match_call({:when, _meta, [call, condition]}) do
+    {
+      Macro.decompose_call(call),
+      Macro.postwalk(condition, &suppress_identifier_warnings/1)
+    }
+  end
+
+  def decompose_match_call(call) do
+    {
+      Macro.decompose_call(call),
+      nil
+    }
   end
 
   defp warn_about_memory_usage({_count, _time}) do

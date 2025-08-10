@@ -32,14 +32,10 @@ defmodule Twine do
   arguments.
   """
   defmacro print_calls(call, rate, opts \\ []) do
-    {m, f, a} = Macro.decompose_call(call)
-
-    Internal.run(a, fn a ->
-      num_args = Enum.count(a)
-
+    Internal.run(call, fn matchspec_ast, num_args ->
       quote do
         Internal.do_print_calls(
-          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+          unquote(matchspec_ast),
           unquote(num_args),
           unquote(rate),
           unquote(opts)
@@ -54,14 +50,10 @@ defmodule Twine do
   `{pid, {module, function, arguments}}`.
   """
   defmacro recv_calls(call, rate, opts \\ []) do
-    {m, f, a} = Macro.decompose_call(call)
-
-    Internal.run(a, fn a ->
-      num_args = Enum.count(a)
-
+    Internal.run(call, fn matchspec_ast, num_args ->
       quote do
         Internal.do_recv_calls(
-          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end},
+          unquote(matchspec_ast),
           unquote(num_args),
           unquote(rate),
           unquote(opts)
