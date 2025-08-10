@@ -134,7 +134,7 @@ iex>
 [2025-07-27 20:37:05.858377Z] #PID<0.196.0> - Server.handle_call({:subscribe, "listener2", #PID<0.212.0>}, {#PID<0.197.0>, [:alias | #Reference<0.0.25219.3166356339.1974009859.127485>]}, %{subscribers: [{"listener", #PID<0.197.0>}]})
 ```
 
-You can even use guards, if you need to refine your match further
+You can even use guards, if you need to refine your match further.
 
 ```elixir
 iex> require Twine
