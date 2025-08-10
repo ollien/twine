@@ -107,9 +107,13 @@ defmodule Twine.Internal do
     if Enum.empty?(missing_from_args) do
       :ok
     else
+      identifiers_msg =
+        missing_from_args
+        |> Enum.sort()
+        |> Enum.join(", ")
+
       {:error,
-       "Identifiers in guard must exist in argument pattern. Invalid identifiers: " <>
-         Enum.join(missing_from_args, ", ")}
+       "Identifiers in guard must exist in argument pattern. Invalid identifiers: #{identifiers_msg}"}
     end
   end
 
