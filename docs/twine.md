@@ -134,6 +134,25 @@ iex>
 [2025-07-27 20:37:05.858377Z] #PID<0.196.0> - Server.handle_call({:subscribe, "listener2", #PID<0.212.0>}, {#PID<0.197.0>, [:alias | #Reference<0.0.25219.3166356339.1974009859.127485>]}, %{subscribers: [{"listener", #PID<0.197.0>}]})
 ```
 
+You can even use guards, if you need to refine your match further
+
+```elixir
+iex> require Twine
+iex> pid = Process.whereis(MyServer)
+iex> Twine.print_calls(
+  MyServer.handle_call({:subscribe, name, pid}, from, state)
+    when length(state.subscribers) > 0,
+  {10, 1000},
+  pid: pid
+)
+
+iex>
+1 function(s) matched, waiting for calls...
+:ok
+
+[2025-08-10 16:34:27.328975Z] #PID<0.202.0> - MyServer.handle_call({:subscribe, "listener2", #PID<0.203.0>}, {#PID<0.203.0>, [:alias | #Reference<0.0.25987.1847409877.3450142743.162317>]}, %{subscribers: [{"listener", #PID<0.203.0>}]})
+```
+
 ### Removing Useless Information
 
 Often, we don't really care about all the information passed to a function, and
