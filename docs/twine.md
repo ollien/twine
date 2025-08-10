@@ -222,7 +222,7 @@ Assuming you've gotten both of these right, it is possible that `recon_trace`
 did in fact match your call correctly, but it is taking time to generate the
 output. Depending on the size of your call, this may take a couple of minutes. 
 
-### Why can't I use the pin operator or shell in guards?
+### Why can't I use the pin operator or shell variables in guards?
 If you've attempted to use the pin operator when specifying a call, you've
 likely gotten this error
 
