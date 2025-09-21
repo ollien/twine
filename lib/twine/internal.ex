@@ -3,6 +3,8 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
+  alias Twine.Internal.CallTracker
+
   def run(call_ast, func) do
     {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
     skip_preprocessing_args = args_to_skip_preprocessing(a, guard_clause)
@@ -20,7 +22,7 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(spec, num_args, rate, opts) do
-    do_trace_calls(spec, num_args, rate, &format_print/2, opts)
+    do_trace_calls(spec, num_args, rate, &format_print/3, opts)
   end
 
   def do_recv_calls(spec, num_args, rate, opts) do
@@ -32,8 +34,8 @@ defmodule Twine.Internal do
       spec,
       num_args,
       rate,
-      fn pid, mfa ->
-        format_recv(me, pid, mfa)
+      fn pid, mfa, result ->
+        format_recv(me, pid, mfa, result)
       end,
       opts
     )
@@ -53,7 +55,7 @@ defmodule Twine.Internal do
     case guard_clause do
       nil ->
         quote do
-          {unquote(m), unquote(f), fn unquote(a) -> :return_trace end}
+          {unquote(m), unquote(f), fn unquote(a) -> :TWINE_HANDLE_ACTION end}
         end
 
       guard_clause ->
@@ -61,7 +63,7 @@ defmodule Twine.Internal do
           {
             unquote(m),
             unquote(f),
-            fn unquote(a) when unquote(guard_clause) -> :return_trace end
+            fn unquote(a) when unquote(guard_clause) -> :TWINE_HANDLE_ACTION end
           }
         end
     end
@@ -120,11 +122,13 @@ defmodule Twine.Internal do
   defp do_trace_calls(spec, num_args, rate, format_action, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
+    {:ok, tracker} = CallTracker.start_link()
+
     with :ok <- validate_mapper(mapper, num_args) do
       recon_opts =
         opts
         |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, make_format_fn(format_action, mapper))
+        |> Keyword.put(:formatter, make_format_fn(tracker, format_action, mapper))
         |> Keyword.put(:scope, :local)
 
       {m, f, func} = spec
@@ -154,12 +158,26 @@ defmodule Twine.Internal do
     rate * 2
   end
 
-  defp make_format_fn(action, mapper) do
+  defp make_format_fn(tracker, action, mapper) do
     fn
       {:trace, pid, :call, {module, function, args}} ->
-        action.(pid, {module, function, map_args(mapper, args)})
+        CallTracker.log_call(tracker, pid, {module, function, args})
+        ""
 
-      _other ->
+      {:trace, pid, :return_from, {module, function, arg_count}, return} ->
+        {^module, ^function, args} =
+          CallTracker.pop_call(tracker, pid, {module, function, arg_count})
+
+        action.(pid, {module, function, map_args(mapper, args)}, {:return, return})
+
+      {:trace, pid, :exception_from, {module, function, arg_count}, return} ->
+        {^module, ^function, args} =
+          CallTracker.pop_call(tracker, pid, {module, function, arg_count})
+
+        action.(pid, {module, function, map_args(mapper, args)}, {:exception, return})
+
+      other ->
+        IO.inspect(other)
         # Empty string is ignored by recon
         ""
     end
@@ -178,7 +196,7 @@ defmodule Twine.Internal do
     end
   end
 
-  defp format_print(pid, {module, function, args}) do
+  defp format_print(pid, {module, function, args}, result) do
     f_pid = "#{IO.ANSI.light_red()}#{inspect(pid)}#{IO.ANSI.reset()}"
 
     # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
@@ -200,10 +218,16 @@ defmodule Twine.Internal do
       end)
       |> Enum.join(", ")
 
-    "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n"
+    case result do
+      {:return, return} ->
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args}) -> #{inspect(return)}\n"
+
+      {:exception, error} ->
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args}) -> ! \n\t#{inspect(error)}\n"
+    end
   end
 
-  defp format_recv(recv_pid, call_pid, mfa) do
+  defp format_recv(recv_pid, call_pid, mfa, return) do
     send(recv_pid, {call_pid, mfa})
 
     # Recon allows us to return an empty string and it won't do anything with it
@@ -347,22 +371,24 @@ defmodule Twine.Internal do
             {:error, :transform_error}
 
           match_function ->
-            Enum.map(match_function, &fix_match_function_action/1)
+            Enum.map(match_function, &inject_actions/1)
         end
     end
   end
 
   # Per the erlang docs, "ActionCall" must wrap atoms in tuples. Normally recon_trace 
   # solves this with doing return_trace(), but we can't do that in elixir shellfuns. 
-  # The easiest way to do it is to just transform all atoms in the action position to
-  # {atom}. We also know from above this will always just be one atom.
+  # The easiest way to do it is to just transform a sentinel atom into the actions we want
   #
   # https://www.erlang.org/doc/apps/erts/match_spec
-  defp fix_match_function_action({head, conditions, actions}) do
+  defp inject_actions({head, conditions, actions}) do
     actions =
       Enum.map(actions, fn
-        action when is_atom(action) -> {action}
-        action -> action
+        :TWINE_HANDLE_ACTION ->
+          [{:return_trace}, {:exception_trace}]
+
+        action ->
+          action
       end)
 
     {head, conditions, actions}
