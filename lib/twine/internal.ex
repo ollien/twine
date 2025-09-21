@@ -34,8 +34,8 @@ defmodule Twine.Internal do
       spec,
       num_args,
       rate,
-      fn pid, mfa, result ->
-        format_recv(me, pid, mfa, result)
+      fn pid, mfa, events ->
+        format_recv(me, pid, mfa, events)
       end,
       opts
     )
@@ -129,6 +129,7 @@ defmodule Twine.Internal do
         opts
         |> Keyword.take([:pid])
         |> Keyword.put(:formatter, make_format_fn(tracker, format_action, mapper))
+        |> Keyword.put(:return_to, true)
         |> Keyword.put(:scope, :local)
 
       {m, f, func} = spec
@@ -151,35 +152,51 @@ defmodule Twine.Internal do
 
   # We will get a return_from for every call, so we should tolerate double the messages for completeness
   defp correct_rate({count, time}) when is_integer(count) and is_integer(time) do
-    {count * 2, time}
+    {count * 3, time}
   end
 
   defp correct_rate(rate) when is_integer(rate) do
-    rate * 2
+    rate * 3
   end
 
   defp make_format_fn(tracker, action, mapper) do
     fn
-      {:trace, pid, :call, {module, function, args}} ->
-        CallTracker.log_call(tracker, pid, {module, function, args})
-        ""
+      event ->
+        case CallTracker.handle_event(tracker, event) do
+          {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
+            # TODO: print warnings better
+            IO.inspect(warnings, label: "warnings")
+            ""
 
-      {:trace, pid, :return_from, {module, function, arg_count}, return} ->
-        {^module, ^function, args} =
-          CallTracker.pop_call(tracker, pid, {module, function, arg_count})
+          {
+            :ok,
+            %CallTracker.Result{status: {:ready, {pid, {module, function, args}, events}}}
+          } ->
+            action.(pid, {module, function, map_args(mapper, args)}, events)
 
-        action.(pid, {module, function, map_args(mapper, args)}, {:return, return})
+            # TODO: handle error
+        end
 
-      {:trace, pid, :exception_from, {module, function, arg_count}, return} ->
-        {^module, ^function, args} =
-          CallTracker.pop_call(tracker, pid, {module, function, arg_count})
-
-        action.(pid, {module, function, map_args(mapper, args)}, {:exception, return})
-
-      other ->
-        IO.inspect(other)
-        # Empty string is ignored by recon
-        ""
+        # {:trace, pid, :call, {module, function, args}} ->
+        #   CallTracker.log_call(tracker, pid, {module, function, args})
+        #   ""
+        #
+        # {:trace, pid, :return_from, {module, function, arg_count}, return} ->
+        #   {^module, ^function, args} =
+        #     CallTracker.pop_call(tracker, pid, {module, function, arg_count})
+        #
+        #   action.(pid, {module, function, map_args(mapper, args)}, {:return, return})
+        #
+        # {:trace, pid, :exception_from, {module, function, arg_count}, return} ->
+        #   {^module, ^function, args} =
+        #     CallTracker.pop_call(tracker, pid, {module, function, arg_count})
+        #
+        #   action.(pid, {module, function, map_args(mapper, args)}, {:exception, return})
+        #
+        # other ->
+        #   IO.inspect(other)
+        #   # Empty string is ignored by recon
+        #   ""
     end
   end
 
@@ -196,7 +213,7 @@ defmodule Twine.Internal do
     end
   end
 
-  defp format_print(pid, {module, function, args}, result) do
+  defp format_print(pid, {module, function, args}, events) do
     f_pid = "#{IO.ANSI.light_red()}#{inspect(pid)}#{IO.ANSI.reset()}"
 
     # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
@@ -218,16 +235,20 @@ defmodule Twine.Internal do
       end)
       |> Enum.join(", ")
 
-    case result do
-      {:return, return} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args}) -> #{inspect(return)}\n"
+    case events do
+      %{return_from: return_from} ->
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n" <>
+          "L RETURNED TO #{inspect(events.return_to)}\n" <>
+          "L RETURNED #{inspect(return_from)}\n"
 
-      {:exception, error} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args}) -> ! \n\t#{inspect(error)}\n"
+      %{exception_from: exception_from} ->
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n" <>
+          "L RETURNED TO #{inspect(events.return_to)}\n" <>
+          "L RAISED EXCEPTION #{inspect(exception_from)}\n"
     end
   end
 
-  defp format_recv(recv_pid, call_pid, mfa, return) do
+  defp format_recv(recv_pid, call_pid, mfa, result) do
     send(recv_pid, {call_pid, mfa})
 
     # Recon allows us to return an empty string and it won't do anything with it

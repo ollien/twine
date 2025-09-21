@@ -3,22 +3,133 @@ defmodule Twine.Internal.CallTracker do
   # This module tracks calls for the Internal module. There is absolutely no
   # guarantee around its stability
 
+  defmodule Entry do
+    @moduledoc false
+
+    @enforce_keys [:mfa]
+    defstruct [:mfa, events: %{}]
+  end
+
+  defmodule Result do
+    @moduledoc false
+
+    @enforce_keys [:status]
+    defstruct [:status, warnings: []]
+  end
+
   use Agent
 
   def start_link() do
     Agent.start_link(fn -> %{} end)
   end
 
-  def log_call(tracker, pid, mfa) do
-    Agent.update(tracker, fn %{} = state ->
-      Map.put(state, {pid, normalize_mfa(mfa)}, mfa)
+  @doc """
+  Log an event from the tracer. 
+
+  Returns:
+    - {:ok, %Result{status: :not_ready}} when a call has been received, but not all events have come in yet
+    - {:ok, %Result{status: {:ready, ...}}} when a call has been received, and all events have come in
+    - {:error, reason when an invalid event has been received
+
+    Any :ok result might contain a set of warnings
+  """
+  def handle_event(tracker, {:trace, pid, :call, {_module, _function, _args} = mfa}) do
+    old_entry =
+      Agent.get_and_update(tracker, fn %{} = state ->
+        old_entry = Map.get(state, pid)
+
+        state =
+          Map.put(
+            state,
+            pid,
+            %Entry{mfa: mfa, events: %{}}
+          )
+
+        {old_entry, state}
+      end)
+
+    case old_entry do
+      nil ->
+        {:ok, %Result{status: :not_ready}}
+
+      %Entry{} ->
+        warning = {:overwrote_call, old_entry.mfa}
+
+        {:ok, %Result{status: :not_ready, warnings: [warning]}}
+    end
+  end
+
+  def handle_event(
+        tracker,
+        {:trace, pid, :return_from, {_module, _function, _arg_count} = mfa, return}
+      ) do
+    log_event(tracker, pid, normalize_mfa(mfa), :return_from, return)
+  end
+
+  def handle_event(
+        tracker,
+        {:trace, pid, :exception_from, {_module, _function, _arg_count} = mfa, error}
+      ) do
+    log_event(tracker, pid, normalize_mfa(mfa), :exception_from, error)
+  end
+
+  def handle_event(
+        tracker,
+        {:trace, pid, :return_to, {_module, _function, _arg_count} = mfa}
+      ) do
+    log_event(tracker, pid, :return_to, mfa)
+  end
+
+  defp log_event(tracker, pid, kind, value) do
+    log_event(tracker, pid, :unknown, kind, value)
+  end
+
+  defp log_event(tracker, pid, normalized_mfa, kind, value) do
+    Agent.get_and_update(tracker, fn %{} = state ->
+      with {:ok, entry} <- fetch_call(state, pid, normalized_mfa) do
+        entry = put_in(entry.events[kind], value)
+        state = %{state | pid => entry}
+
+        {result_after_log(pid, entry), state}
+      else
+        error -> {error, state}
+      end
     end)
   end
 
-  def pop_call(tracker, pid, mfa) do
-    Agent.get_and_update(tracker, fn %{} = state ->
-      Map.pop(state, {pid, normalize_mfa(mfa)})
-    end)
+  defp fetch_call(%{} = state, pid, normalized_mfa) do
+    with %Entry{} = entry <- Map.get(state, pid, {:error, :missing}),
+         :ok <- validate_entry_mfa(entry, normalized_mfa) do
+      {:ok, entry}
+    end
+  end
+
+  defp validate_entry_mfa(%Entry{}, :unknown) do
+    :ok
+  end
+
+  defp validate_entry_mfa(%Entry{} = entry, normalized_mfa) do
+    case normalize_mfa(entry.mfa) do
+      ^normalized_mfa ->
+        :ok
+
+      _other ->
+        {:error, :wrong_mfa}
+    end
+  end
+
+  defp result_after_log(pid, entry) do
+    # We must have return_to'd or return_from'd, otherwise we haven't gotten all the events yet.
+    case entry.events do
+      %{:return_to => _return_to, :return_from => _return_from} ->
+        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
+
+      %{:return_to => _return_to, :exception_from => _exception_from} ->
+        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
+
+      %{} ->
+        {:ok, %Result{status: :not_ready}}
+    end
   end
 
   defp normalize_mfa({mod, function, args}) when is_integer(args) do
