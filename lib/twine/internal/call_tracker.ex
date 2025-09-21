@@ -98,23 +98,23 @@ defmodule Twine.Internal.CallTracker do
   end
 
   defp fetch_call(%{} = state, pid, normalized_mfa) do
-    with %Entry{} = entry <- Map.get(state, pid, {:error, :missing}),
-         :ok <- validate_entry_mfa(entry, normalized_mfa) do
+    with %Entry{} = entry <- Map.get(state, pid, {:error, {:missing, pid, normalized_mfa}}),
+         :ok <- validate_expected_mfa(entry, pid, normalized_mfa) do
       {:ok, entry}
     end
   end
 
-  defp validate_entry_mfa(%Entry{}, :unknown) do
+  defp validate_expected_mfa(%Entry{}, _pid, :unknown) do
     :ok
   end
 
-  defp validate_entry_mfa(%Entry{} = entry, normalized_mfa) do
+  defp validate_expected_mfa(%Entry{} = entry, pid, normalized_mfa) do
     case normalize_mfa(entry.mfa) do
       ^normalized_mfa ->
         :ok
 
       _other ->
-        {:error, :wrong_mfa}
+        {:error, {:wrong_mfa, pid, entry.mfa}}
     end
   end
 
