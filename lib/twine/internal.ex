@@ -132,7 +132,7 @@ defmodule Twine.Internal do
       matches =
         :recon_trace.calls(
           {m, f, fun_to_ms(func)},
-          rate,
+          correct_rate(rate),
           recon_opts
         )
 
@@ -143,6 +143,15 @@ defmodule Twine.Internal do
 
         :error
     end
+  end
+
+  # We will get a return_from for every call, so we should tolerate double the messages for completeness
+  defp correct_rate({count, time}) when is_integer(count) and is_integer(time) do
+    {count * 2, time}
+  end
+
+  defp correct_rate(rate) when is_integer(rate) do
+    rate * 2
   end
 
   defp make_format_fn(action, mapper) do
