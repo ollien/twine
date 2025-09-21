@@ -19,17 +19,17 @@ defmodule Twine.Internal do
     end
   end
 
-  def do_print_calls(func, num_args, rate, opts) do
-    do_trace_calls(func, num_args, rate, &format_print/2, opts)
+  def do_print_calls(spec, num_args, rate, opts) do
+    do_trace_calls(spec, num_args, rate, &format_print/2, opts)
   end
 
-  def do_recv_calls(func, num_args, rate, opts) do
+  def do_recv_calls(spec, num_args, rate, opts) do
     warn_about_memory_usage(rate)
 
     me = self()
 
     do_trace_calls(
-      func,
+      spec,
       num_args,
       rate,
       fn pid, mfa ->
@@ -117,7 +117,7 @@ defmodule Twine.Internal do
     end
   end
 
-  defp do_trace_calls(func, num_args, rate, format_action, opts) do
+  defp do_trace_calls(spec, num_args, rate, format_action, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
     with :ok <- validate_mapper(mapper, num_args) do
@@ -127,9 +127,11 @@ defmodule Twine.Internal do
         |> Keyword.put(:formatter, make_format_fn(format_action, mapper))
         |> Keyword.put(:scope, :local)
 
+      {m, f, func} = spec
+
       matches =
         :recon_trace.calls(
-          func,
+          {m, f, fun_to_ms(func)},
           rate,
           recon_opts
         )
@@ -144,8 +146,13 @@ defmodule Twine.Internal do
   end
 
   defp make_format_fn(action, mapper) do
-    fn {:trace, pid, :call, {module, function, args}} ->
-      action.(pid, {module, function, map_args(mapper, args)})
+    fn
+      {:trace, pid, :call, {module, function, args}} ->
+        action.(pid, {module, function, map_args(mapper, args)})
+
+      _other ->
+        # Empty string is ignored by recon
+        ""
     end
   end
 
@@ -285,5 +292,70 @@ defmodule Twine.Internal do
 
   defp pinned_argument?(_other) do
     false
+  end
+
+  # Lifted from recon_trace and translated to elixir, primarily to support 
+  # action transformation
+  #
+  # License for recon_trace:
+  #
+  # Copyright (c) 2012-2024, Fred Hebert
+  # All rights reserved.
+  #
+  # Redistribution and use in source and binary forms, with or without modification,
+  # are permitted provided that the following conditions are met:
+  #
+  #   Redistributions of source code must retain the above copyright notice, this
+  #   list of conditions and the following disclaimer.
+  #
+  #   Redistributions in binary form must reproduce the above copyright notice, this
+  #   list of conditions and the following disclaimer in the documentation and/or
+  #   other materials provided with the distribution.
+  #
+  #   Neither the name of the copyright holder nor the names of its contributors may
+  #   be used to endorse or promote products derived from this software without
+  #   specific prior written permission.
+  #
+  # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+  # ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  # DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+  # ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  # (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  # LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+  # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  defp fun_to_ms(shell_fun) when is_function(shell_fun) do
+    case :erl_eval.fun_data(shell_fun) do
+      {:fun_data, import_list, clauses} ->
+        case :ms_transform.transform_from_shell(:dbg, clauses, import_list) do
+          {:error, [{_, [{_, _, code} | _]} | _], _} ->
+            IO.puts(
+              "#{IO.ANSI.red()}Matchspec error: #{:ms_transform.format_error(code)}#{IO.ANSI.reset()}"
+            )
+
+            {:error, :transform_error}
+
+          match_function ->
+            Enum.map(match_function, &fix_match_function_action/1)
+        end
+    end
+  end
+
+  # Per the erlang docs, "ActionCall" must wrap atoms in tuples. Normally recon_trace 
+  # solves this with doing return_trace(), but we can't do that in elixir shellfuns. 
+  # The easiest way to do it is to just transform all atoms in the action position to
+  # {atom}. We also know from above this will always just be one atom.
+  #
+  # https://www.erlang.org/doc/apps/erts/match_spec
+  defp fix_match_function_action({head, conditions, actions}) do
+    actions =
+      Enum.map(actions, fn
+        action when is_atom(action) -> {action}
+        action -> action
+      end)
+
+    {head, conditions, actions}
   end
 end

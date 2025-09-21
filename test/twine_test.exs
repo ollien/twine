@@ -436,6 +436,28 @@ defmodule TraceMacroCase do
 
         refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
       end
+
+      # This covers a specific case where the :return_from case is not handled
+      # and recon_trace throws an error in another process
+      test "allows selecting more than one response without crashing" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 2)
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        refute output =~ "raised an exception"
+      end
     end
   end
 end
