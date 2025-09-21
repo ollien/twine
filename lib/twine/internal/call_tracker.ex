@@ -53,7 +53,7 @@ defmodule Twine.Internal.CallTracker do
         {:ok, %Result{status: :not_ready}}
 
       %Entry{} ->
-        warning = {:overwrote_call, old_entry.mfa}
+        warning = {:overwrote_call, pid, old_entry.mfa}
 
         {:ok, %Result{status: :not_ready, warnings: [warning]}}
     end
@@ -88,9 +88,15 @@ defmodule Twine.Internal.CallTracker do
     Agent.get_and_update(tracker, fn %{} = state ->
       with {:ok, entry} <- fetch_call(state, pid, normalized_mfa) do
         entry = put_in(entry.events[kind], value)
-        state = %{state | pid => entry}
+        result = result_after_log(pid, entry)
 
-        {result_after_log(pid, entry), state}
+        state =
+          case result do
+            {:ok, %Result{status: {:ready, _info}}} -> Map.delete(state, pid)
+            _other -> %{state | pid => entry}
+          end
+
+        {result, state}
       else
         error -> {error, state}
       end

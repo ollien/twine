@@ -165,18 +165,24 @@ defmodule Twine.Internal do
       event ->
         case CallTracker.handle_event(tracker, event) do
           {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
-            # TODO: print warnings better
-            IO.inspect(warnings, label: "warnings")
+            Enum.each(warnings, &print_event_warning/1)
+            # recon_trace ignores empty strings
             ""
 
           {
             :ok,
-            %CallTracker.Result{status: {:ready, {pid, {module, function, args}, events}}}
+            %CallTracker.Result{
+              status: {:ready, {pid, {module, function, args}, events}},
+              warnings: warnings
+            }
           } ->
+            Enum.each(warnings, &print_event_warning/1)
             action.(pid, {module, function, map_args(mapper, args)}, events)
 
-          {:error, {:wrong_mfa, mfa}} ->
-            IO.inspect("#{IO.ANSI.red()}Received event for #{IO.ANSI.reset()}")
+          {:error, reason} ->
+            print_event_error(reason)
+            # recon_trace ignores empty strings
+            ""
         end
     end
   end
@@ -194,6 +200,25 @@ defmodule Twine.Internal do
     end
   end
 
+  defp print_event_warning({:overwrote_call, pid, {module, function, args}}) do
+    f_pid = Stringify.pid(pid)
+    f_call = Stringify.call(module, function, args)
+
+    IO.puts(
+      "#{IO.ANSI.yellow()}Twine received call event before previous call completed on #{f_pid}#{IO.ANSI.yellow()}. Previous call: #{f_call}#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp print_event_error({kind, pid, {module, function, args}})
+       when kind in [:wrong_mfa, :missing] do
+    f_pid = Stringify.pid(pid)
+    f_call = Stringify.call(module, function, args)
+
+    IO.puts(
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.yellow()} - #{f_call}#{IO.ANSI.reset()}"
+    )
+  end
+
   defp format_print(pid, {module, function, args}, events) do
     f_pid = Stringify.pid(pid)
 
@@ -201,17 +226,25 @@ defmodule Twine.Internal do
       Stringify.call(module, function, args)
       |> String.replace("~", "~~")
 
-    case events do
-      %{return_from: return_from} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n" <>
-          "L RETURNED TO #{inspect(events.return_to)}\n" <>
-          "L RETURNED #{inspect(return_from)}\n"
+    outcome_msg =
+      case events do
+        %{return_from: return_from} ->
+          "#{IO.ANSI.cyan()}Returned#{IO.ANSI.reset()}: #{Stringify.term(return_from)}"
 
-      %{exception_from: exception_from} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n" <>
-          "L RETURNED TO #{inspect(events.return_to)}\n" <>
-          "L RAISED EXCEPTION #{inspect(exception_from)}\n"
-    end
+        %{exception_from: exception_from} ->
+          "#{IO.ANSI.red()}Raised Exception#{IO.ANSI.reset()}: #{Stringify.term(exception_from)}"
+      end
+
+    timestamp = "#{DateTime.utc_now()}]"
+    timestamp_padding = String.duplicate(" ", String.length(timestamp))
+    {return_module, return_function, return_args} = events.return_to
+
+    # Must convert this to a charlist so Erlang shows the unicode chars correctly
+    String.to_charlist(
+      "#{timestamp} ┌ #{f_pid} - #{f_call}\n" <>
+        "#{timestamp_padding} ├ #{outcome_msg}\n" <>
+        "#{timestamp_padding} └ #{IO.ANSI.cyan()}Returned to#{IO.ANSI.reset()}: #{Stringify.call(return_module, return_function, return_args)}\n"
+    )
   end
 
   defp format_recv(recv_pid, call_pid, mfa, result) do
@@ -370,12 +403,12 @@ defmodule Twine.Internal do
   # https://www.erlang.org/doc/apps/erts/match_spec
   defp inject_actions({head, conditions, actions}) do
     actions =
-      Enum.map(actions, fn
+      Enum.flat_map(actions, fn
         :TWINE_HANDLE_ACTION ->
           [{:return_trace}, {:exception_trace}]
 
         action ->
-          action
+          [action]
       end)
 
     {head, conditions, actions}

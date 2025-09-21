@@ -97,7 +97,7 @@ defmodule Twine.Internal.CallTrackerTest do
              {:ok,
               %CallTracker.Result{
                 status: :not_ready,
-                warnings: [{:overwrote_call, {MyModule, :my_function, [:foo, :bar]}}]
+                warnings: [{:overwrote_call, pid, {MyModule, :my_function, [:foo, :bar]}}]
               }}
   end
 
