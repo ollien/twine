@@ -4,6 +4,7 @@ defmodule Twine.Internal do
   # is absolutely no guarantee around their stability
 
   alias Twine.Internal.CallTracker
+  alias Twine.Internal.Stringify
 
   def run(call_ast, func) do
     {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
@@ -174,29 +175,9 @@ defmodule Twine.Internal do
           } ->
             action.(pid, {module, function, map_args(mapper, args)}, events)
 
-            # TODO: handle error
+          {:error, {:wrong_mfa, mfa}} ->
+            IO.inspect("#{IO.ANSI.red()}Received event for #{IO.ANSI.reset()}")
         end
-
-        # {:trace, pid, :call, {module, function, args}} ->
-        #   CallTracker.log_call(tracker, pid, {module, function, args})
-        #   ""
-        #
-        # {:trace, pid, :return_from, {module, function, arg_count}, return} ->
-        #   {^module, ^function, args} =
-        #     CallTracker.pop_call(tracker, pid, {module, function, arg_count})
-        #
-        #   action.(pid, {module, function, map_args(mapper, args)}, {:return, return})
-        #
-        # {:trace, pid, :exception_from, {module, function, arg_count}, return} ->
-        #   {^module, ^function, args} =
-        #     CallTracker.pop_call(tracker, pid, {module, function, arg_count})
-        #
-        #   action.(pid, {module, function, map_args(mapper, args)}, {:exception, return})
-        #
-        # other ->
-        #   IO.inspect(other)
-        #   # Empty string is ignored by recon
-        #   ""
     end
   end
 
@@ -214,35 +195,20 @@ defmodule Twine.Internal do
   end
 
   defp format_print(pid, {module, function, args}, events) do
-    f_pid = "#{IO.ANSI.light_red()}#{inspect(pid)}#{IO.ANSI.reset()}"
+    f_pid = Stringify.pid(pid)
 
-    # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
-    f_module = "#{IO.ANSI.cyan()}#{inspect(module)}#{IO.ANSI.reset()}"
-    f_function = "#{IO.ANSI.green()}#{function}#{IO.ANSI.reset()}"
-
-    f_args =
-      args
-      |> Enum.map(fn arg ->
-        arg
-        |> inspect(
-          syntax_colors: IO.ANSI.syntax_colors(),
-          pretty: true,
-          limit: :infinity,
-          printable_limit: :infinity
-        )
-        # We escape tildes because recon_trace uses io:format, which uses ~ as an escape sequence.
-        |> String.replace("~", "~~")
-      end)
-      |> Enum.join(", ")
+    f_call =
+      Stringify.call(module, function, args)
+      |> String.replace("~", "~~")
 
     case events do
       %{return_from: return_from} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n" <>
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n" <>
           "L RETURNED TO #{inspect(events.return_to)}\n" <>
           "L RETURNED #{inspect(return_from)}\n"
 
       %{exception_from: exception_from} ->
-        "[#{DateTime.utc_now()}] #{f_pid} - #{f_module}.#{f_function}(#{f_args})\n" <>
+        "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n" <>
           "L RETURNED TO #{inspect(events.return_to)}\n" <>
           "L RAISED EXCEPTION #{inspect(exception_from)}\n"
     end
