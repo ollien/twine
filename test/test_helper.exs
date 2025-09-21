@@ -48,6 +48,10 @@ defmodule TestHelper do
   def strip_ansi(str) do
     Regex.replace(~r/\x1b\[[0-9;]*m/, str, "")
   end
+
+  def has_exception?(output) do
+    output =~ "raised an exception"
+  end
 end
 
 ExUnit.start()

@@ -34,6 +34,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "prints invocations to local function" do
@@ -58,6 +59,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "allows matching patterns in the trace" do
@@ -82,6 +84,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "allows matching guards in the trace" do
@@ -106,6 +109,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "does not print anything if the pattern does not match" do
@@ -130,6 +134,7 @@ defmodule TraceMacroCase do
           end
 
         refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "does not print anything if the guard does not match" do
@@ -154,6 +159,7 @@ defmodule TraceMacroCase do
           end
 
         refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "allows capturing of single pids" do
@@ -194,6 +200,7 @@ defmodule TraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
         refute TestHelper.strip_ansi(output) =~ "Blah.func(0, 0, 0)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "allows mapping of args" do
@@ -219,6 +226,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 4, 9)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "allows mapping of args with tuple return value" do
@@ -244,6 +252,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 4, 9)"
+        refute TestHelper.has_exception?(output)
       end
 
       test "cannot pass a mapper of incorrect arity" do
@@ -268,6 +277,8 @@ defmodule TraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~
                  "Mapper function must have the same arity as traced function"
+
+        refute TestHelper.has_exception?(output)
       end
 
       test "informs user if call is missing" do
@@ -281,6 +292,8 @@ defmodule TraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~
                  "No functions matched, check that it is specified correctly"
+
+        refute TestHelper.has_exception?(output)
       end
 
       test "informs user call is matched" do
@@ -298,6 +311,7 @@ defmodule TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~ "1 function(s) matched, waiting for calls..."
+        refute TestHelper.has_exception?(output)
       end
 
       test "does not emit warnings for non-underscore prefixed names" do
@@ -315,6 +329,7 @@ defmodule TraceMacroCase do
           end
 
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"arg1\" is unused"
+        refute TestHelper.has_exception?(output)
       end
 
       test "does not emit warnings for non-underscore prefixed names even in structures" do
@@ -332,11 +347,13 @@ defmodule TraceMacroCase do
           end
 
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"a\" is unused"
+        refute TestHelper.has_exception?(output)
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"b\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"c\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"d\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"e\" is unused"
         refute TestHelper.strip_ansi(output) =~ "warning: variable \"f\" is unused"
+        refute TestHelper.has_exception?(output)
       end
 
       test "does not emit warnings for names being used in guards" do
@@ -361,6 +378,8 @@ defmodule TraceMacroCase do
 
         refute TestHelper.strip_ansi(output) =~
                  "The underscored variable \"_arg1\" is used after being set."
+
+        refute TestHelper.has_exception?(output)
       end
 
       test "cannot pass call with pinned variable" do
@@ -387,6 +406,8 @@ defmodule TraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~
                  "Call cannot contain a pattern that uses the pin operator (^)"
+
+        refute TestHelper.has_exception?(output)
       end
 
       test "cannot pass guard with variables not in argument patterns" do
@@ -414,6 +435,8 @@ defmodule TraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~
                  "Identifiers in guard must exist in argument pattern. Invalid identifiers: x, y"
+
+        refute TestHelper.has_exception?(output)
       end
 
       test "calling clear stops tracing" do
@@ -435,6 +458,7 @@ defmodule TraceMacroCase do
           end
 
         refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
       end
 
       # This covers a specific case where the :return_from case is not handled
@@ -456,7 +480,7 @@ defmodule TraceMacroCase do
             Code.eval_quoted(unquote(generate_output))
           end
 
-        refute output =~ "raised an exception"
+        refute TestHelper.has_exception?(output)
       end
     end
   end
