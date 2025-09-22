@@ -288,8 +288,26 @@ defmodule Twine.Internal do
     )
   end
 
-  defp format_recv(recv_pid, call_pid, mfa, result) do
-    send(recv_pid, {call_pid, mfa})
+  defp format_recv(recv_pid, call_pid, mfa, events) do
+    outcome =
+      case events do
+        %{return_from: return_from, return_to: return_to} ->
+          %Twine.TracedCallReturned{return_value: return_from, return_to: return_to}
+
+        %{exception_from: exception_from, return_to: return_to} ->
+          %Twine.TracedCallExceptionCaught{exception: exception_from, return_to: return_to}
+
+        %{exception_from: exception_from, DOWN: exit_reason} ->
+          %Twine.TracedCallCrashed{exception: exception_from, exit_reason: exit_reason}
+      end
+
+    msg = %Twine.TracedCall{
+      pid: call_pid,
+      mfa: mfa,
+      outcome: outcome
+    }
+
+    send(recv_pid, msg)
 
     # Recon allows us to return an empty string and it won't do anything with it
     ""

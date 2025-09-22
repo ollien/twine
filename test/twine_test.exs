@@ -296,6 +296,107 @@ defmodule TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
+      test "prints return function and return value" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+
+              def doit() do
+                # Can't be in the tail position, or we don't show the right return_to
+                func(1, 2, 3)
+
+                :ok
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
+            Blah.doit()
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        assert TestHelper.strip_ansi(output) =~ "Returned: nil"
+        assert TestHelper.strip_ansi(output) =~ "Returned to: Blah.doit/0"
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "prints return function and exception when caught" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                raise "oh no"
+              end
+
+              def doit() do
+                # Can't be in the tail position, or we don't show the right return_to
+                try do
+                  func(1, 2, 3)
+                rescue
+                  error -> {:error, :caught, error}
+                end
+
+                :ok
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
+            Blah.doit()
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Raised Exception: {:error, %RuntimeError{message: \"oh no\"}}"
+
+        assert TestHelper.strip_ansi(output) =~ "Returned to: Blah.doit/0"
+        refute TestHelper.has_exception?(output)
+      end
+
+      @tag :only
+      test "prints exception and stack information when a process crashes" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                raise "oh no"
+              end
+
+              def doit() do
+                Blah.func(1, 2, 3)
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
+
+            spawn(fn ->
+              Blah.doit()
+            end)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Raised Exception: {:error, %RuntimeError{message: \"oh no\"}}"
+
+        assert TestHelper.strip_ansi(output) =~ "Process Exited: nofile:5: Blah.func/3"
+        # does not check for an exception, since we explicitly are throwing one
+      end
+
       test "informs user call is matched" do
         output =
           TestHelper.iex_run do
@@ -506,8 +607,42 @@ defmodule Twine.RecvCallsTest do
          Stream.repeatedly(fn -> nil end)
          |> Enum.reduce_while(nil, fn nil, nil ->
            receive do
-             {pid, {m, f, a}} when is_pid(pid) ->
-               IO.inspect("#{m}.#{f}(#{Enum.join(a, ", ")})")
+             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: outcome} when is_pid(pid) ->
+               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
+
+               case outcome do
+                 %Twine.TracedCallReturned{
+                   return_value: return_value,
+                   return_to: {return_m, return_f, return_a}
+                 } ->
+                   IO.puts("Returned: #{inspect(return_value)}")
+                   IO.inspect("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+                 %Twine.TracedCallExceptionCaught{
+                   exception: exception,
+                   return_to: {return_m, return_f, return_a}
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+                   IO.puts("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+                 %Twine.TracedCallCrashed{
+                   exception: exception,
+                   exit_reason: {_error, stack}
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+
+                   IO.puts(
+                     "Process Exited: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
+                   )
+
+                 %Twine.TracedCallCrashed{
+                   exception: exception,
+                   exit_reason: reason
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+                   IO.puts("Process Exited: #{inspect(reason)}")
+               end
+
                {:cont, nil}
            after
              100 -> {:halt, nil}

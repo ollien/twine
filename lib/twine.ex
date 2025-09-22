@@ -4,6 +4,52 @@ defmodule Twine do
   """
   alias Twine.Internal
 
+  defmodule TracedCall do
+    @type t :: %__MODULE__{
+            pid: pid(),
+            mfa: {module(), atom(), [any()]},
+            outcome:
+              TracedCallReturned.t() | TracedCallExceptionCaught.t() | TracedCallCrashed.t()
+          }
+
+    @enforce_keys [:pid, :mfa]
+    defstruct [
+      :pid,
+      :mfa,
+      outcome: nil
+    ]
+  end
+
+  defmodule TracedCallReturned do
+    @type t :: %__MODULE__{
+            return_value: term(),
+            return_to: {module(), function(), integer()}
+          }
+
+    @enforce_keys [:return_value, :return_to]
+    defstruct [:return_value, :return_to]
+  end
+
+  defmodule TracedCallExceptionCaught do
+    @type t :: %__MODULE__{
+            exception: term(),
+            return_to: {module(), function(), integer()}
+          }
+
+    @enforce_keys [:exception, :return_to]
+    defstruct [:exception, :return_to]
+  end
+
+  defmodule TracedCallCrashed do
+    @type t :: %__MODULE__{
+            exception: term(),
+            exit_reason: term()
+          }
+
+    @enforce_keys [:exception, :exit_reason]
+    defstruct [:exception, :exit_reason]
+  end
+
   @doc """
   Placeholder for ergonomics so iex does not attempt to evaluate the call if one argument is passed. This has no use.
   """
