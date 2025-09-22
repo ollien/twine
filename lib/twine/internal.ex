@@ -226,7 +226,16 @@ defmodule Twine.Internal do
     f_call = Stringify.call(module, function, args)
 
     IO.puts(
-      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.yellow()} - #{f_call}#{IO.ANSI.reset()}"
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - #{f_call}#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp print_event_error({kind, pid, :unknown})
+       when kind in [:wrong_mfa, :missing] do
+    f_pid = Stringify.pid(pid)
+
+    IO.puts(
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - callsite could not be determined#{IO.ANSI.reset()}"
     )
   end
 
