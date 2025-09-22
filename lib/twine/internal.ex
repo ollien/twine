@@ -123,13 +123,24 @@ defmodule Twine.Internal do
   defp do_trace_calls(spec, num_args, rate, format_action, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
-    {:ok, tracker} = CallTracker.start_link()
+    {:ok, tracker} =
+      CallTracker.start_link(fn {:ok,
+                                 %CallTracker.Result{
+                                   status: {:ready, {pid, {module, function, args}, events}},
+                                   warnings: warnings
+                                 }} ->
+        Enum.each(warnings, &print_event_warning/1)
+        msg = format_action.(pid, {module, function, map_args(mapper, args)}, events)
+        IO.puts(msg)
+      end)
+
+    format_fn = make_format_fn(tracker, format_action, mapper)
 
     with :ok <- validate_mapper(mapper, num_args) do
       recon_opts =
         opts
         |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, make_format_fn(tracker, format_action, mapper))
+        |> Keyword.put(:formatter, format_fn)
         |> Keyword.put(:return_to, true)
         |> Keyword.put(:scope, :local)
 
@@ -220,11 +231,8 @@ defmodule Twine.Internal do
   end
 
   defp format_print(pid, {module, function, args}, events) do
-    f_pid = Stringify.pid(pid)
-
-    f_call =
-      Stringify.call(module, function, args)
-      |> String.replace("~", "~~")
+    timestamp = "#{DateTime.utc_now()}]"
+    timestamp_padding = String.duplicate(" ", String.length(timestamp))
 
     outcome_msg =
       case events do
@@ -235,15 +243,39 @@ defmodule Twine.Internal do
           "#{IO.ANSI.red()}Raised Exception#{IO.ANSI.reset()}: #{Stringify.term(exception_from)}"
       end
 
-    timestamp = "#{DateTime.utc_now()}]"
-    timestamp_padding = String.duplicate(" ", String.length(timestamp))
-    {return_module, return_function, return_args} = events.return_to
+    return_msg =
+      case events do
+        %{return_to: {return_module, return_function, return_args}} ->
+          "#{IO.ANSI.cyan()}Returned to#{IO.ANSI.reset()}: #{Stringify.call(return_module, return_function, return_args)}"
+
+        # If we have a DOWN, we probably have the error in the exception
+        %{DOWN: {_error, stacktrace}} ->
+          f_stacktrace = Exception.format_stacktrace(stacktrace)
+          # Add 3 to match the deocrations we add below
+          stacktrace_padding =
+            timestamp_padding <> String.duplicate(" ", String.length("Process Exited: ") + 3)
+
+          f_stacktrace =
+            Regex.replace(~r/^\s*/m, f_stacktrace, stacktrace_padding)
+            |> String.trim_leading()
+
+          "#{IO.ANSI.red()}Process Exited#{IO.ANSI.reset()}: #{f_stacktrace}"
+
+        %{DOWN: reason} ->
+          "#{IO.ANSI.red()}Process Exited#{IO.ANSI.reset()}: #{Stringify.term(reason)}"
+      end
+
+    f_pid = Stringify.pid(pid)
+
+    f_call =
+      Stringify.call(module, function, args)
+      |> String.replace("~", "~~")
 
     # Must convert this to a charlist so Erlang shows the unicode chars correctly
     String.to_charlist(
       "#{timestamp} ┌ #{f_pid} - #{f_call}\n" <>
         "#{timestamp_padding} ├ #{outcome_msg}\n" <>
-        "#{timestamp_padding} └ #{IO.ANSI.cyan()}Returned to#{IO.ANSI.reset()}: #{Stringify.call(return_module, return_function, return_args)}\n"
+        "#{timestamp_padding} └ #{return_msg}\n"
     )
   end
 

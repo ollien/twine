@@ -6,14 +6,18 @@ defmodule Twine.Internal.CallTracker do
   defmodule State do
     @moduledoc false
 
-    defstruct tracked_pids: %{}
+    @enforce_keys [:down_callback]
+    defstruct [
+      :down_callback,
+      tracked_pids: %{}
+    ]
   end
 
   defmodule Entry do
     @moduledoc false
 
-    @enforce_keys [:mfa]
-    defstruct [:mfa, events: %{}]
+    @enforce_keys [:mfa, :monitor_ref]
+    defstruct [:mfa, :monitor_ref, events: %{}]
   end
 
   defmodule Result do
@@ -25,8 +29,8 @@ defmodule Twine.Internal.CallTracker do
 
   use GenServer
 
-  def start_link() do
-    GenServer.start_link(__MODULE__, nil)
+  def start_link(down_callback) when is_function(down_callback, 1) do
+    GenServer.start_link(__MODULE__, down_callback)
   end
 
   @doc """
@@ -44,8 +48,8 @@ defmodule Twine.Internal.CallTracker do
   end
 
   @impl GenServer
-  def init(nil) do
-    {:ok, %State{}}
+  def init(down_callback) do
+    {:ok, %State{down_callback: down_callback}}
   end
 
   @impl GenServer
@@ -55,8 +59,10 @@ defmodule Twine.Internal.CallTracker do
         %State{} = state
       ) do
     old_entry = Map.get(state.tracked_pids, pid)
+    monitor_ref = Process.monitor(pid)
 
-    state = put_in(state.tracked_pids[pid], %Entry{mfa: mfa, events: %{}})
+    state =
+      put_in(state.tracked_pids[pid], %Entry{mfa: mfa, monitor_ref: monitor_ref, events: %{}})
 
     case old_entry do
       nil ->
@@ -104,6 +110,31 @@ defmodule Twine.Internal.CallTracker do
     {:reply, reply, state}
   end
 
+  @impl GenServer
+  def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) when is_pid(pid) do
+    case state.tracked_pids[pid] do
+      nil ->
+        {:noreply, state}
+
+      %Entry{monitor_ref: ^ref} ->
+        {result, state} = log_event(state, pid, :DOWN, reason)
+
+        case result do
+          {:ok, %Result{status: {:ready, _data}}} ->
+            state = %State{state | tracked_pids: Map.delete(state.tracked_pids, pid)}
+            state.down_callback.(result)
+            {:noreply, state}
+
+          _other ->
+            {:noreply, state}
+        end
+    end
+  end
+
+  def handle_info(_other, %State{} = state) do
+    {:noreply, state}
+  end
+
   defp log_event(%State{} = state, pid, kind, value) do
     log_event(state, pid, :unknown, kind, value)
   end
@@ -116,7 +147,10 @@ defmodule Twine.Internal.CallTracker do
       state =
         case result do
           {:ok, %Result{status: {:ready, _info}}} ->
-            tracked_pids = Map.delete(state.tracked_pids, pid)
+            {entry, tracked_pids} = Map.pop(state.tracked_pids, pid)
+            # This can't be nil since we just fetched the pid from state earlier
+            Process.demonitor(entry.monitor_ref)
+
             %State{state | tracked_pids: tracked_pids}
 
           _other ->
@@ -158,6 +192,9 @@ defmodule Twine.Internal.CallTracker do
         {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
 
       %{:return_to => _return_to, :exception_from => _exception_from} ->
+        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
+
+      %{:DOWN => _down, :exception_from => _exception_from} ->
         {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
 
       %{} ->
