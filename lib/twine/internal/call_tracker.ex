@@ -111,6 +111,22 @@ defmodule Twine.Internal.CallTracker do
   end
 
   @impl GenServer
+  def handle_info({:DOWN, _ref, :process, pid, {:shutdown, _reason}}, %State{} = state)
+      when is_pid(pid) do
+    # Ignore "normal" shutdown reasons, since if we get this, chances are we're racing against a return_to
+    # It does technically mean that our state has a reference to a monitor that has already resolved,
+    # but that's fine, since it's not like we're going to get more than one DOWN for it.
+    {:noreply, state}
+  end
+
+  @impl GenServer
+  def handle_info({:DOWN, _ref, :process, pid, reason}, %State{} = state)
+      when is_pid(pid) and reason in [:normal, :shutdown] do
+    # Same as above
+    {:noreply, state}
+  end
+
+  @impl GenServer
   def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) when is_pid(pid) do
     case state.tracked_pids[pid] do
       nil ->
