@@ -9,7 +9,8 @@ defmodule Twine.Internal.CallTracker do
     @enforce_keys [:result_callback]
     defstruct [
       :result_callback,
-      tracked_pids: %{}
+      tracked_pids: %{},
+      tracer_monitor_ref: nil
     ]
   end
 
@@ -61,9 +62,24 @@ defmodule Twine.Internal.CallTracker do
     :ok
   end
 
+  @doc """
+  Monitor the given tracer, so we can terminate with it
+  """
+  def monitor_tracer(tracker, tracer_pid) do
+    GenServer.call(tracker, {:monitor_tracer, tracer_pid})
+  end
+
   @impl GenServer
   def init(result_callback) do
     {:ok, %State{result_callback: result_callback}}
+  end
+
+  @impl GenServer
+  def handle_call({:monitor_tracer, tracer_pid}, _from, %State{} = state) do
+    monitor_ref = Process.monitor(tracer_pid)
+    state = %State{state | tracer_monitor_ref: monitor_ref}
+
+    {:reply, :ok, state}
   end
 
   @impl GenServer
@@ -132,6 +148,14 @@ defmodule Twine.Internal.CallTracker do
       state.result_callback.(reply)
       {:noreply, state}
     end
+  end
+
+  @impl GenServer
+  def handle_info(
+        {:DOWN, ref, :process, _pid, _reason},
+        %State{tracer_monitor_ref: ref} = state
+      ) do
+    {:stop, :normal, state}
   end
 
   @impl GenServer

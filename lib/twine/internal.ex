@@ -168,6 +168,7 @@ defmodule Twine.Internal do
   defp make_format_fn(tracker) do
     fn
       event ->
+        CallTracker.monitor_tracer(tracker, self())
         CallTracker.handle_event(tracker, event)
 
         # recon_trace ignores "" values

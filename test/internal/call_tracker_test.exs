@@ -247,4 +247,22 @@ defmodule Twine.Internal.CallTrackerTest do
                     {:missing, ^pid2, {MyModule, :another_function, 5}, {:return_from, nil}}},
                    250
   end
+
+  test "process stops when tracer process stops" do
+    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    Process.unlink(tracker)
+    monitor_ref = Process.monitor(tracker)
+
+    pid =
+      spawn(fn ->
+        receive do
+          _anything -> :erlang.exit(:normal)
+        end
+      end)
+
+    CallTracker.monitor_tracer(tracker, pid)
+    send(pid, :die)
+
+    assert_receive {:DOWN, ^monitor_ref, :process, ^tracker, _reason}
+  end
 end
