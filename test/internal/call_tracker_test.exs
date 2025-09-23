@@ -3,31 +3,34 @@ defmodule Twine.Internal.CallTrackerTest do
 
   use ExUnit.Case
 
+  def send_to(self_pid) do
+    fn result ->
+      send(self_pid, result)
+    end
+  end
+
   test "returns event details after call, return_from, and return_to" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid = :erlang.list_to_pid(~c"<0.1.0>")
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
+    )
 
     expected_ready_payload =
       {
@@ -36,35 +39,33 @@ defmodule Twine.Internal.CallTrackerTest do
         %{:return_from => :ok, :return_to => {MyModule, :my_parent_function, 0}}
       }
 
-    assert res ==
-             {:ok, %CallTracker.Result{status: {:ready, expected_ready_payload}, warnings: []}}
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
   end
 
   test "returns event details after call, exception_from, and return_to" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid = :erlang.list_to_pid(~c"<0.1.0>")
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
+    )
 
     expected_ready_payload =
       {
@@ -73,13 +74,13 @@ defmodule Twine.Internal.CallTrackerTest do
         %{:exception_from => :badarg, :return_to => {MyModule, :my_parent_function, 0}}
       }
 
-    assert res ==
-             {:ok, %CallTracker.Result{status: {:ready, expected_ready_payload}, warnings: []}}
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
   end
 
   test "returns event details after call, exception_from, and DOWN" do
-    {:ok, tracker} =
-      CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
 
     pid =
       spawn(fn ->
@@ -89,23 +90,21 @@ defmodule Twine.Internal.CallTrackerTest do
     # Ensure we get the DOWN, so we know the process is actually dead.
     # Otherwise, there is a race between the next two clauses and the DOWN.
     ref = Process.monitor(pid)
-    assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+    assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
+    )
 
-    assert {:ok, %CallTracker.Result{status: {:ready, ready_payload}, warnings: []}} = res
+    assert_receive {:ok, %CallTracker.Result{status: {:ready, ready_payload}, warnings: []}}, 250
 
     assert {
              ^pid,
@@ -120,12 +119,7 @@ defmodule Twine.Internal.CallTrackerTest do
   end
 
   test "calls callback with event details after call, exception_from, and DOWN" do
-    me = self()
-
-    {:ok, tracker} =
-      CallTracker.start_link(fn result ->
-        send(me, result)
-      end)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
 
     pid =
       spawn(fn ->
@@ -134,24 +128,22 @@ defmodule Twine.Internal.CallTrackerTest do
         end
       end)
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :exception_from, {MyModule, :my_function, 2}, :badarg}
+    )
 
-    assert res == {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
     send(pid, :die)
-    assert_receive {:ok, %CallTracker.Result{status: {:ready, ready_payload}, warnings: []}}
+    assert_receive {:ok, %CallTracker.Result{status: {:ready, ready_payload}, warnings: []}}, 250
 
     assert {
              ^pid,
@@ -164,90 +156,95 @@ defmodule Twine.Internal.CallTrackerTest do
   end
 
   test "returns warning when overwriting an existing call" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid = :erlang.list_to_pid(~c"<0.1.0>")
 
-    {:ok, %CallTracker.Result{status: :not_ready, warnings: []}} =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:wibble, :wobble]}}
-      )
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    assert res ==
-             {:ok,
-              %CallTracker.Result{
-                status: :not_ready,
-                warnings: [{:overwrote_call, pid, {MyModule, :my_function, [:foo, :bar]}}]
-              }}
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:wibble, :wobble]}}
+    )
+
+    assert_receive {:ok,
+                    %CallTracker.Result{
+                      status: :not_ready,
+                      warnings: [{:overwrote_call, ^pid, {MyModule, :my_function, [:foo, :bar]}}]
+                    }},
+                   250
   end
 
   test "does not warn when getting two calls on different pids" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid1 = :erlang.list_to_pid(~c"<0.1.0>")
     pid2 = :erlang.list_to_pid(~c"<0.2.0>")
 
-    {:ok, %CallTracker.Result{status: :not_ready, warnings: []}} =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid1, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid1, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid2, :call, {MyModule, :my_function, [:wibble, :wobble]}}
-      )
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    assert res ==
-             {:ok,
-              %CallTracker.Result{
-                status: :not_ready,
-                warnings: []
-              }}
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid2, :call, {MyModule, :my_function, [:wibble, :wobble]}}
+    )
+
+    assert_receive {:ok,
+                    %CallTracker.Result{
+                      status: :not_ready,
+                      warnings: []
+                    }},
+                   250
   end
 
   test "returns error when getting a non-call event for the wrong MFA" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid = :erlang.list_to_pid(~c"<0.1.0>")
 
-    {:ok, %CallTracker.Result{status: :not_ready, warnings: []}} =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid, :return_from, {MyModule, :another_function, 5}, nil}
-      )
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    assert res == {:error, {:wrong_mfa, pid, {MyModule, :my_function, [:foo, :bar]}}}
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :another_function, 5}, nil}
+    )
+
+    assert_receive {:error,
+                    {:wrong_mfa, ^pid, {MyModule, :my_function, [:foo, :bar]},
+                     {:return_from, nil}}},
+                   250
   end
 
   test "returns missing when getting a non-call event for a different pid" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
     pid1 = :erlang.list_to_pid(~c"<0.1.0>")
     pid2 = :erlang.list_to_pid(~c"<0.2.0>")
 
-    {:ok, %CallTracker.Result{status: :not_ready, warnings: []}} =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid1, :call, {MyModule, :my_function, [:foo, :bar]}}
-      )
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid1, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
 
-    res =
-      CallTracker.handle_event(
-        tracker,
-        {:trace, pid2, :return_from, {MyModule, :another_function, 5}, nil}
-      )
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
 
-    assert res == {:error, {:missing, pid2, {MyModule, :another_function, 5}}}
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid2, :return_from, {MyModule, :another_function, 5}, nil}
+    )
+
+    assert_receive {:error,
+                    {:missing, ^pid2, {MyModule, :another_function, 5}, {:return_from, nil}}},
+                   250
   end
 end

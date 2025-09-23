@@ -363,7 +363,6 @@ defmodule TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      @tag :only
       test "prints exception and stack information when a process crashes" do
         output =
           TestHelper.iex_run do
@@ -593,7 +592,7 @@ defmodule Twine.PrintCallsTest do
     generate_output:
       (quote do
          # Give recon_trace some time to print the call before IEx exits
-         Process.sleep(100)
+         Process.sleep(250)
        end)
 end
 
@@ -645,7 +644,7 @@ defmodule Twine.RecvCallsTest do
 
                {:cont, nil}
            after
-             100 -> {:halt, nil}
+             250 -> {:halt, nil}
            end
          end)
        end)

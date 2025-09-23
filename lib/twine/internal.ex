@@ -123,20 +123,14 @@ defmodule Twine.Internal do
   defp do_trace_calls(spec, num_args, rate, format_action, opts) do
     {mapper, opts} = Keyword.pop(opts, :mapper, nil)
 
-    {:ok, tracker} =
-      CallTracker.start_link(fn {:ok,
-                                 %CallTracker.Result{
-                                   status: {:ready, {pid, {module, function, args}, events}},
-                                   warnings: warnings
-                                 }} ->
-        Enum.each(warnings, &print_event_warning/1)
-        msg = format_action.(pid, {module, function, map_args(mapper, args)}, events)
-        IO.puts(msg)
-      end)
-
-    format_fn = make_format_fn(tracker, format_action, mapper)
-
     with :ok <- validate_mapper(mapper, num_args) do
+      {:ok, tracker} =
+        CallTracker.start_link(fn result ->
+          handle_calltracker_result(result, format_action, mapper)
+        end)
+
+      format_fn = make_format_fn(tracker)
+
       recon_opts =
         opts
         |> Keyword.take([:pid])
@@ -171,31 +165,38 @@ defmodule Twine.Internal do
     rate * 3
   end
 
-  defp make_format_fn(tracker, action, mapper) do
+  defp make_format_fn(tracker) do
     fn
       event ->
-        case CallTracker.handle_event(tracker, event) do
-          {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
-            Enum.each(warnings, &print_event_warning/1)
-            # recon_trace ignores empty strings
-            ""
+        CallTracker.handle_event(tracker, event)
 
-          {
-            :ok,
-            %CallTracker.Result{
-              status: {:ready, {pid, {module, function, args}, events}},
-              warnings: warnings
-            }
-          } ->
-            Enum.each(warnings, &print_event_warning/1)
-            action.(pid, {module, function, map_args(mapper, args)}, events)
-
-          {:error, reason} ->
-            print_event_error(reason)
-            # recon_trace ignores empty strings
-            ""
-        end
+        # recon_trace ignores "" values
+        ""
     end
+  end
+
+  defp handle_calltracker_result(result, format_action, mapper) do
+    case result do
+      {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
+        Enum.each(warnings, &print_event_warning/1)
+
+      {
+        :ok,
+        %CallTracker.Result{
+          status: {:ready, {pid, {module, function, args}, events}},
+          warnings: warnings
+        }
+      } ->
+        Enum.each(warnings, &print_event_warning/1)
+
+        format_action.(pid, {module, function, map_args(mapper, args)}, events)
+        |> IO.puts()
+
+      {:error, reason} ->
+        print_event_error(reason)
+    end
+
+    :ok
   end
 
   defp map_args(nil, args) do
@@ -220,22 +221,22 @@ defmodule Twine.Internal do
     )
   end
 
-  defp print_event_error({kind, pid, {module, function, args}})
+  defp print_event_error({kind, pid, {module, function, args}, message})
        when kind in [:wrong_mfa, :missing] do
     f_pid = Stringify.pid(pid)
     f_call = Stringify.call(module, function, args)
 
     IO.puts(
-      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - #{f_call}#{IO.ANSI.reset()}"
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - #{f_call} #{IO.ANSI.light_black()}(#{inspect(message)}#{IO.ANSI.reset()}"
     )
   end
 
-  defp print_event_error({kind, pid, :unknown})
+  defp print_event_error({kind, pid, :unknown, message})
        when kind in [:wrong_mfa, :missing] do
     f_pid = Stringify.pid(pid)
 
     IO.puts(
-      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - callsite could not be determined#{IO.ANSI.reset()}"
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - callsite could not be determined #{IO.ANSI.light_black()}(#{inspect(message)}#{IO.ANSI.reset()}"
     )
   end
 
