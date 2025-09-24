@@ -1,17 +1,18 @@
 # These tests are annoyingly complicated in the way they're structured.
 #
 # 1. The top-level macros of Twine are nigh identical, just in how they
-#    generate output, so we have this TraceMacroCase CaseTemplate that we
+#    generate output, so we have two CaseTemplates that we
 #    use to generate test cases for each macro. Each template takes the name
 #    of the macro and a quoted AST block on how to generate output.
 # 2. Each test has to run under iex, so we run blocks of code in this `iex_run`
 #    macro. Check TestHelper to see how it works
-defmodule TraceMacroCase do
+defmodule Twine.TraceMacroCase do
   use ExUnit.CaseTemplate
 
   using(opts) do
     macro_name = Keyword.fetch!(opts, :macro_name)
     generate_output = Keyword.fetch!(opts, :generate_output)
+    base_opts = Keyword.fetch!(opts, :base_opts)
 
     quote do
       require TestHelper
@@ -27,7 +28,7 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, unquote(base_opts))
             Blah.func(1, 2, 3)
 
             Code.eval_quoted(unquote(generate_output))
@@ -52,7 +53,7 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, unquote(base_opts))
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -77,7 +78,7 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(1, _b, _c), 1)
+            Twine.unquote(macro_name)(Blah.func(1, _b, _c), 1, unquote(base_opts))
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -102,7 +103,12 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(a, _b, _c) when is_integer(a), 1)
+            Twine.unquote(macro_name)(
+              Blah.func(a, _b, _c) when is_integer(a),
+              1,
+              unquote(base_opts)
+            )
+
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -127,7 +133,7 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(0, 0, 0), 1)
+            Twine.unquote(macro_name)(Blah.func(0, 0, 0), 1, unquote(base_opts))
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -152,7 +158,7 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(a, _b, _c) when is_nil(a), 1)
+            Twine.unquote(macro_name)(Blah.func(a, _b, _c) when is_nil(a), 1, unquote(base_opts))
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -185,7 +191,12 @@ defmodule TraceMacroCase do
                 send(parent, :done)
               end)
 
-            Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 2, pid: pid)
+            Twine.unquote(macro_name)(
+              Blah.func(_arg1, _arg2, _arg3),
+              2,
+              [pid: pid] ++ unquote(base_opts)
+            )
+
             Blah.func(1, 2, 3)
             send(pid, :begin)
 
@@ -214,10 +225,15 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 1,
-              mapper: fn a, b, c ->
-                [a * 1, b * 2, c * 3]
-              end
+            Twine.unquote(macro_name)(
+              Blah.func(_arg1, _arg2, _arg3),
+              1,
+              [
+                mapper: fn a, b, c ->
+                  [a * 1, b * 2, c * 3]
+                end
+              ] ++
+                unquote(base_opts)
             )
 
             Blah.func(1, 2, 3)
@@ -240,10 +256,15 @@ defmodule TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 1,
-              mapper: fn a, b, c ->
-                {a * 1, b * 2, c * 3}
-              end
+            Twine.unquote(macro_name)(
+              Blah.func(_arg1, _arg2, _arg3),
+              1,
+              [
+                mapper: fn a, b, c ->
+                  {a * 1, b * 2, c * 3}
+                end
+              ] ++
+                unquote(base_opts)
             )
 
             Blah.func(1, 2, 3)
@@ -269,9 +290,11 @@ defmodule TraceMacroCase do
             Twine.unquote(macro_name)(
               Blah.func(_arg1, _arg2, _arg3),
               1,
-              mapper: fn a ->
-                {a}
-              end
+              [
+                mapper: fn a ->
+                  {a}
+                end
+              ] ++ unquote(base_opts)
             )
           end
 
@@ -286,7 +309,7 @@ defmodule TraceMacroCase do
           TestHelper.iex_run do
             require Twine
 
-            Twine.unquote(macro_name)(Blah.func(), 1)
+            Twine.unquote(macro_name)(Blah.func(), 1, unquote(base_opts))
             Code.eval_quoted(unquote(generate_output))
           end
 
@@ -295,6 +318,215 @@ defmodule TraceMacroCase do
 
         refute TestHelper.has_exception?(output)
       end
+
+      test "informs user call is matched" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 1, unquote(base_opts))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "1 function(s) matched, waiting for calls..."
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "does not emit warnings for non-underscore prefixed names" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(arg1, _arg2, _arg3), 1, unquote(base_opts))
+          end
+
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"arg1\" is unused"
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "does not emit warnings for non-underscore prefixed names even in structures" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              Blah.func({a, [b, c], %{"key" => [e, f]}}, _arg2, _arg3),
+              1,
+              unquote(base_opts)
+            )
+          end
+
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"a\" is unused"
+        refute TestHelper.has_exception?(output)
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"b\" is unused"
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"c\" is unused"
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"d\" is unused"
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"e\" is unused"
+        refute TestHelper.strip_ansi(output) =~ "warning: variable \"f\" is unused"
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "does not emit warnings for names being used in guards" do
+        # Covers the case of there being an intersection of variables in guards
+        # and args. The naive approach resulted in warnings from trying to reuse
+        # the "suppressed" variables
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              Blah.func(arg1, arg2, _arg3) when is_integer(arg1) and not is_nil(arg2),
+              1,
+              unquote(base_opts)
+            )
+          end
+
+        refute TestHelper.strip_ansi(output) =~
+                 "The underscored variable \"_arg1\" is used after being set."
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "cannot pass call with pinned variable" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            x = 5
+
+            Twine.unquote(macro_name)(
+              Blah.func(^x, _arg2, _arg3),
+              1,
+              [
+                mapper: fn a ->
+                  {a}
+                end
+              ] ++ unquote(base_opts)
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Call cannot contain a pattern that uses the pin operator (^)"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "cannot pass guard with variables not in argument patterns" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            x = 5
+            y = 6
+
+            Twine.unquote(macro_name)(
+              Blah.func(z, _arg2, _arg3) when y == x or y == z,
+              1,
+              [
+                mapper: fn a ->
+                  {a}
+                end
+              ] ++ unquote(base_opts)
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Identifiers in guard must exist in argument pattern. Invalid identifiers: x, y"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "calling clear stops tracing" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, unquote(base_opts))
+            Twine.clear()
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
+      end
+
+      # This covers a specific case where the :return_from case is not handled
+      # and recon_trace throws an error in another process
+      test "allows selecting more than one response without crashing" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 2, unquote(base_opts))
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        refute TestHelper.has_exception?(output)
+      end
+    end
+  end
+end
+
+defmodule Twine.TrackedOnlyTraceMacroCase do
+  use ExUnit.CaseTemplate
+
+  using(opts) do
+    macro_name = Keyword.fetch!(opts, :macro_name)
+    generate_output = Keyword.fetch!(opts, :generate_output)
+
+    quote do
+      require TestHelper
 
       test "prints return function and return value" do
         output =
@@ -395,199 +627,34 @@ defmodule TraceMacroCase do
         assert TestHelper.strip_ansi(output) =~ "Process Exited: nofile:5: Blah.func/3"
         # does not check for an exception, since we explicitly are throwing one
       end
-
-      test "informs user call is matched" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 1)
-          end
-
-        assert TestHelper.strip_ansi(output) =~ "1 function(s) matched, waiting for calls..."
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "does not emit warnings for non-underscore prefixed names" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(Blah.func(arg1, _arg2, _arg3), 1)
-          end
-
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"arg1\" is unused"
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "does not emit warnings for non-underscore prefixed names even in structures" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(Blah.func({a, [b, c], %{"key" => [e, f]}}, _arg2, _arg3), 1)
-          end
-
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"a\" is unused"
-        refute TestHelper.has_exception?(output)
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"b\" is unused"
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"c\" is unused"
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"d\" is unused"
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"e\" is unused"
-        refute TestHelper.strip_ansi(output) =~ "warning: variable \"f\" is unused"
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "does not emit warnings for names being used in guards" do
-        # Covers the case of there being an intersection of variables in guards
-        # and args. The naive approach resulted in warnings from trying to reuse
-        # the "suppressed" variables
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(
-              Blah.func(arg1, arg2, _arg3) when is_integer(arg1) and not is_nil(arg2),
-              1
-            )
-          end
-
-        refute TestHelper.strip_ansi(output) =~
-                 "The underscored variable \"_arg1\" is used after being set."
-
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "cannot pass call with pinned variable" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            x = 5
-
-            Twine.unquote(macro_name)(
-              Blah.func(^x, _arg2, _arg3),
-              1,
-              mapper: fn a ->
-                {a}
-              end
-            )
-          end
-
-        assert TestHelper.strip_ansi(output) =~
-                 "Call cannot contain a pattern that uses the pin operator (^)"
-
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "cannot pass guard with variables not in argument patterns" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            x = 5
-            y = 6
-
-            Twine.unquote(macro_name)(
-              Blah.func(z, _arg2, _arg3) when y == x or y == z,
-              1,
-              mapper: fn a ->
-                {a}
-              end
-            )
-          end
-
-        assert TestHelper.strip_ansi(output) =~
-                 "Identifiers in guard must exist in argument pattern. Invalid identifiers: x, y"
-
-        refute TestHelper.has_exception?(output)
-      end
-
-      test "calling clear stops tracing" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1)
-            Twine.clear()
-            Blah.func(1, 2, 3)
-
-            Code.eval_quoted(unquote(generate_output))
-          end
-
-        refute TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
-        refute TestHelper.has_exception?(output)
-      end
-
-      # This covers a specific case where the :return_from case is not handled
-      # and recon_trace throws an error in another process
-      test "allows selecting more than one response without crashing" do
-        output =
-          TestHelper.iex_run do
-            require Twine
-
-            defmodule Blah do
-              def func(_argument1, _argument2, _argument3) do
-                nil
-              end
-            end
-
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 2)
-            Blah.func(1, 2, 3)
-
-            Code.eval_quoted(unquote(generate_output))
-          end
-
-        refute TestHelper.has_exception?(output)
-      end
     end
   end
 end
 
-defmodule Twine.PrintCallsTest do
-  use TraceMacroCase,
+defmodule Twine.PrintCallsTestTracked do
+  use Twine.TraceMacroCase,
+    macro_name: :print_calls,
+    base_opts: [],
+    generate_output:
+      (quote do
+         # Give recon_trace some time to print the call before IEx exits
+         Process.sleep(250)
+       end)
+end
+
+defmodule Twine.PrintCallsTestSimple do
+  use Twine.TraceMacroCase,
+    macro_name: :print_calls,
+    base_opts: [ignore_outcome: true],
+    generate_output:
+      (quote do
+         # Give recon_trace some time to print the call before IEx exits
+         Process.sleep(250)
+       end)
+end
+
+defmodule Twine.TrackedOnlyPrintCallsTest do
+  use Twine.TrackedOnlyTraceMacroCase,
     macro_name: :print_calls,
     generate_output:
       (quote do
@@ -596,8 +663,87 @@ defmodule Twine.PrintCallsTest do
        end)
 end
 
-defmodule Twine.RecvCallsTest do
-  use TraceMacroCase,
+# TODO: dedupe the generate_output here - I struggled to do so and decided it wasn't worth it
+
+defmodule Twine.RecvCallsTestTracked do
+  use Twine.TraceMacroCase,
+    macro_name: :recv_calls,
+    base_opts: [],
+    # We can't use recursion in this macro expansion, so we cheat a little bit by using
+    # Stream.repeatedly and Enum.reduce_while
+    generate_output:
+      (quote do
+         Stream.repeatedly(fn -> nil end)
+         |> Enum.reduce_while(nil, fn nil, nil ->
+           receive do
+             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: outcome} when is_pid(pid) ->
+               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
+
+               case outcome do
+                 %Twine.TracedCallReturned{
+                   return_value: return_value,
+                   return_to: {return_m, return_f, return_a}
+                 } ->
+                   IO.puts("Returned: #{inspect(return_value)}")
+                   IO.inspect("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+                 %Twine.TracedCallExceptionCaught{
+                   exception: exception,
+                   return_to: {return_m, return_f, return_a}
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+                   IO.puts("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+                 %Twine.TracedCallCrashed{
+                   exception: exception,
+                   exit_reason: {_error, stack}
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+
+                   IO.puts(
+                     "Process Exited: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
+                   )
+
+                 %Twine.TracedCallCrashed{
+                   exception: exception,
+                   exit_reason: reason
+                 } ->
+                   IO.puts("Raised Exception: #{inspect(exception)}")
+                   IO.puts("Process Exited: #{inspect(reason)}")
+               end
+
+               {:cont, nil}
+           after
+             250 -> {:halt, nil}
+           end
+         end)
+       end)
+end
+
+defmodule Twine.RecvCallsTestSimple do
+  use Twine.TraceMacroCase,
+    macro_name: :recv_calls,
+    base_opts: [ignore_outcome: true],
+    # We can't use recursion in this macro expansion, so we cheat a little bit by using
+    # Stream.repeatedly and Enum.reduce_while
+    generate_output:
+      (quote do
+         Stream.repeatedly(fn -> nil end)
+         |> Enum.reduce_while(nil, fn nil, nil ->
+           receive do
+             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: nil} when is_pid(pid) ->
+               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
+
+               {:cont, nil}
+           after
+             250 -> {:halt, nil}
+           end
+         end)
+       end)
+end
+
+defmodule Twine.TrackedOnlyRecvCallsTest do
+  use Twine.TrackedOnlyTraceMacroCase,
     macro_name: :recv_calls,
     # We can't use recursion in this macro expansion, so we cheat a little bit by using
     # Stream.repeatedly and Enum.reduce_while
