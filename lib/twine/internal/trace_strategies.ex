@@ -125,7 +125,7 @@ defmodule Twine.Internal.TraceStrategies do
       Stringify.call(module, function, args)
       |> String.replace("~", "~~")
 
-    "[#{DateTime.utc_now()}] #{f_pid} - #{f_call})\n"
+    "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n"
   end
 
   defp recv(recv_pid, call_pid, mfa, events \\ %{}) do

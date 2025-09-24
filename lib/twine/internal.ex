@@ -22,21 +22,38 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(spec, num_args, rate, opts) do
-    do_trace_calls(spec, num_args, rate, &TraceStrategies.tracked_print/1, opts)
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, false)
+
+    if ignore_outcome do
+      do_trace_calls(spec, num_args, rate, &TraceStrategies.simple_print/1, opts)
+    else
+      do_trace_calls(spec, num_args, rate, &TraceStrategies.tracked_print/1, opts)
+    end
   end
 
   def do_recv_calls(spec, num_args, rate, opts) do
     warn_about_memory_usage(rate)
 
     me = self()
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, false)
 
-    do_trace_calls(
-      spec,
-      num_args,
-      rate,
-      &TraceStrategies.tracked_recv(me, &1),
-      opts
-    )
+    if ignore_outcome do
+      do_trace_calls(
+        spec,
+        num_args,
+        rate,
+        &TraceStrategies.simple_recv(me, &1),
+        opts
+      )
+    else
+      do_trace_calls(
+        spec,
+        num_args,
+        rate,
+        &TraceStrategies.tracked_recv(me, &1),
+        opts
+      )
+    end
   end
 
   defp warn_about_memory_usage({_count, _time}) do
