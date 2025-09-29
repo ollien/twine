@@ -493,9 +493,7 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      # This covers a specific case where the :return_from case is not handled
-      # and recon_trace throws an error in another process
-      test "allows selecting more than one response without crashing" do
+      test "produces the exact number of calls" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -506,13 +504,25 @@ defmodule Twine.TraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 2, unquote(base_opts))
-            Blah.func(1, 2, 3)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 10, unquote(base_opts))
 
-            Code.eval_quoted(unquote(generate_output))
+            Enum.each(1..15, fn _n ->
+              Blah.func(1, 2, 3)
+              Code.eval_quoted(unquote(generate_output))
+            end)
           end
 
         refute TestHelper.has_exception?(output)
+
+        num_calls =
+          output
+          |> TestHelper.strip_ansi()
+          # Amazingly, this is the most concise way to count occurrences
+          |> String.split("Blah.func(1, 2, 3)")
+          |> Enum.count()
+          |> then(fn n -> n - 1 end)
+
+        assert num_calls == 10
       end
     end
   end
