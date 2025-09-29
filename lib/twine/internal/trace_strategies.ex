@@ -17,7 +17,7 @@ defmodule Twine.Internal.TraceStrategies do
         print_simple_message(pid, {module, function, map_args(arg_mapper, args)})
 
       _other ->
-        :ok
+        ""
     end
   end
 
@@ -31,8 +31,11 @@ defmodule Twine.Internal.TraceStrategies do
       {:trace, pid, :call, {module, function, args}} ->
         recv(recv_pid, pid, {module, function, map_args(arg_mapper, args)})
 
+        # Recon allows us to return an empty string and it won't do anything with it
+        ""
+
       _other ->
-        :ok
+        ""
     end
   end
 
@@ -162,9 +165,6 @@ defmodule Twine.Internal.TraceStrategies do
     }
 
     send(recv_pid, msg)
-
-    # Recon allows us to return an empty string and it won't do anything with it
-    ""
   end
 
   defp handle_calltracker_result(result, format_action, arg_mapper) do
