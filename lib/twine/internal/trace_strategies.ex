@@ -88,76 +88,62 @@ defmodule Twine.Internal.TraceStrategies do
     end
   end
 
-  defp format_with_indent(color, prefix, formatted_value, line_prefix_width, opts \\ []) do
-    continuation_padding =
-      String.duplicate(" ", line_prefix_width + String.length(prefix) + 2)
-
-    formatted_value =
-      if Keyword.get(opts, :replace_identation, false) do
-        ~r/^\s*/m
-        |> Regex.replace(formatted_value, continuation_padding)
-        |> String.trim_leading()
-      else
-        ~r/^(\s*)/m
-        |> Regex.replace(formatted_value, "\\1" <> continuation_padding)
-        |> String.trim_leading()
-      end
-
-    "#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
-  end
-
   defp print_tracked_message(pid, {module, function, args}, events) do
     timestamp = "[#{DateTime.utc_now()}]"
     timestamp_width = String.length(timestamp)
-    timestamp_padding = String.duplicate(" ", timestamp_width)
-    decoration_width = 3
-    line_prefix_width = timestamp_width + decoration_width
 
     outcome_msg =
       case events do
         %{return_from: return_from} ->
-          format_with_indent(
+          format_tracked_block(
             IO.ANSI.cyan(),
             "Returned",
             Stringify.term(return_from),
-            line_prefix_width
+            timestamp_width,
+            "├",
+            decorate_edge: true
           )
 
         %{exception_from: exception_from} ->
-          format_with_indent(
+          format_tracked_block(
             IO.ANSI.red(),
             "Raised Exception",
             Stringify.term(exception_from),
-            line_prefix_width
+            timestamp_width,
+            "├",
+            decorate_edge: true
           )
       end
 
     return_msg =
       case events do
         %{return_to: {return_module, return_function, return_args}} ->
-          format_with_indent(
+          format_tracked_block(
             IO.ANSI.cyan(),
             "Returned to",
             Stringify.call(return_module, return_function, return_args),
-            line_prefix_width
+            timestamp_width,
+            "└"
           )
 
         # If we have a DOWN, we probably have the error in the exception
         %{DOWN: {_error, stacktrace}} ->
-          format_with_indent(
+          format_tracked_block(
             IO.ANSI.red(),
             "Process Terminated",
             Exception.format_stacktrace(stacktrace),
-            line_prefix_width,
+            timestamp_width,
+            "└",
             replace_indentation: true
           )
 
         %{DOWN: reason} ->
-          format_with_indent(
+          format_tracked_block(
             IO.ANSI.red(),
             "Process Terminated",
             Stringify.term(reason),
-            line_prefix_width
+            timestamp_width,
+            "└"
           )
       end
 
@@ -170,8 +156,8 @@ defmodule Twine.Internal.TraceStrategies do
     # Must convert this to a charlist so Erlang shows the unicode chars correctly
     String.to_charlist(
       "#{timestamp} #{f_pid} - #{f_call}\n" <>
-        "#{timestamp_padding} ├ #{outcome_msg}\n" <>
-        "#{timestamp_padding} └ #{return_msg}\n"
+        "#{outcome_msg}\n" <>
+        "#{return_msg}\n"
     )
   end
 
@@ -234,6 +220,43 @@ defmodule Twine.Internal.TraceStrategies do
     end
 
     :ok
+  end
+
+  defp format_tracked_block(
+         color,
+         prefix,
+         formatted_value,
+         timestamp_width,
+         decoration_char,
+         opts \\ []
+       ) do
+    timestamp_padding = String.duplicate(" ", timestamp_width)
+    decoration = " #{decoration_char} "
+
+    edge_char =
+      if Keyword.get(opts, :decorate_edge, false) do
+        "│"
+      else
+        " "
+      end
+
+    continuation_padding =
+      timestamp_padding <>
+        " #{edge_char} " <>
+        String.duplicate(" ", String.length(prefix) + 2)
+
+    formatted_value =
+      formatted_value
+      |> String.trim_leading()
+      |> then(fn value ->
+        if Keyword.get(opts, :replace_identation, false) do
+          Regex.replace(~r/\n\s*/, value, "\n" <> continuation_padding)
+        else
+          Regex.replace(~r/\n(\s*)/, value, "\n" <> continuation_padding <> "\\1")
+        end
+      end)
+
+    "#{timestamp_padding}#{decoration}#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
   end
 
   defp map_args(nil, args) do
