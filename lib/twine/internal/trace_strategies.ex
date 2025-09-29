@@ -250,9 +250,9 @@ defmodule Twine.Internal.TraceStrategies do
       |> String.trim_leading()
       |> then(fn value ->
         if Keyword.get(opts, :replace_identation, false) do
-          Regex.replace(~r/\n\s*/, value, "\n" <> continuation_padding)
+          Regex.replace(~r/^\s+/m, value, continuation_padding)
         else
-          Regex.replace(~r/\n(\s*)/, value, "\n" <> continuation_padding <> "\\1")
+          Regex.replace(~r/^(\s+)/m, value, continuation_padding <> "\\1")
         end
       end)
 
