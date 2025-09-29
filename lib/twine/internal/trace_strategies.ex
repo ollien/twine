@@ -103,7 +103,7 @@ defmodule Twine.Internal.TraceStrategies do
           f_stacktrace = Exception.format_stacktrace(stacktrace)
           # Add 3 to match the decorations we add below
           stacktrace_padding =
-            timestamp_padding <> String.duplicate(" ", String.length("Process Exited: ") + 3)
+            timestamp_padding <> String.duplicate(" ", String.length("Process Terminated: ") + 3)
 
           f_stacktrace =
             Regex.replace(~r/^\s*/m, f_stacktrace, stacktrace_padding)

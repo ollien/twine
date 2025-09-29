@@ -701,7 +701,7 @@ defmodule Twine.RecvCallsTestTracked do
                    IO.puts("Raised Exception: #{inspect(exception)}")
 
                    IO.puts(
-                     "Process Exited: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
+                     "Process Terminated: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
                    )
 
                  %Twine.TracedCallCrashed{
@@ -709,7 +709,7 @@ defmodule Twine.RecvCallsTestTracked do
                    exit_reason: reason
                  } ->
                    IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Process Exited: #{inspect(reason)}")
+                   IO.puts("Process Terminated: #{inspect(reason)}")
                end
 
                {:cont, nil}
@@ -777,7 +777,7 @@ defmodule Twine.TrackedOnlyRecvCallsTest do
                    IO.puts("Raised Exception: #{inspect(exception)}")
 
                    IO.puts(
-                     "Process Exited: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
+                     "Process Terminated: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
                    )
 
                  %Twine.TracedCallCrashed{
@@ -785,7 +785,7 @@ defmodule Twine.TrackedOnlyRecvCallsTest do
                    exit_reason: reason
                  } ->
                    IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Process Exited: #{inspect(reason)}")
+                   IO.puts("Process Terminated: #{inspect(reason)}")
                end
 
                {:cont, nil}
