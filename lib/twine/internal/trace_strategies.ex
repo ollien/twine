@@ -67,6 +67,9 @@ defmodule Twine.Internal.TraceStrategies do
 
     recv = fn call_pid, mfa, events ->
       recv(recv_pid, call_pid, mfa, events)
+
+      # handle_calltracker_result needs to not print anything
+      ""
     end
 
     {:ok, tracker} =
