@@ -88,39 +88,77 @@ defmodule Twine.Internal.TraceStrategies do
     end
   end
 
+  defp format_with_indent(color, prefix, formatted_value, line_prefix_width, opts \\ []) do
+    continuation_padding =
+      String.duplicate(" ", line_prefix_width + String.length(prefix) + 2)
+
+    formatted_value =
+      if Keyword.get(opts, :replace_identation, false) do
+        ~r/^\s*/m
+        |> Regex.replace(formatted_value, continuation_padding)
+        |> String.trim_leading()
+      else
+        ~r/^(\s*)/m
+        |> Regex.replace(formatted_value, "\\1" <> continuation_padding)
+        |> String.trim_leading()
+      end
+
+    "#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
+  end
+
   defp print_tracked_message(pid, {module, function, args}, events) do
     timestamp = "[#{DateTime.utc_now()}]"
-    timestamp_padding = String.duplicate(" ", String.length(timestamp))
+    timestamp_width = String.length(timestamp)
+    timestamp_padding = String.duplicate(" ", timestamp_width)
+    decoration_width = 3
+    line_prefix_width = timestamp_width + decoration_width
 
     outcome_msg =
       case events do
         %{return_from: return_from} ->
-          "#{IO.ANSI.cyan()}Returned#{IO.ANSI.reset()}: #{Stringify.term(return_from)}"
+          format_with_indent(
+            IO.ANSI.cyan(),
+            "Returned",
+            Stringify.term(return_from),
+            line_prefix_width
+          )
 
         %{exception_from: exception_from} ->
-          "#{IO.ANSI.red()}Raised Exception#{IO.ANSI.reset()}: #{Stringify.term(exception_from)}"
+          format_with_indent(
+            IO.ANSI.red(),
+            "Raised Exception",
+            Stringify.term(exception_from),
+            line_prefix_width
+          )
       end
 
     return_msg =
       case events do
         %{return_to: {return_module, return_function, return_args}} ->
-          "#{IO.ANSI.cyan()}Returned to#{IO.ANSI.reset()}: #{Stringify.call(return_module, return_function, return_args)}"
+          format_with_indent(
+            IO.ANSI.cyan(),
+            "Returned to",
+            Stringify.call(return_module, return_function, return_args),
+            line_prefix_width
+          )
 
         # If we have a DOWN, we probably have the error in the exception
         %{DOWN: {_error, stacktrace}} ->
-          f_stacktrace = Exception.format_stacktrace(stacktrace)
-          # Add 3 to match the decorations we add below
-          stacktrace_padding =
-            timestamp_padding <> String.duplicate(" ", String.length("Process Terminated: ") + 3)
-
-          f_stacktrace =
-            Regex.replace(~r/^\s*/m, f_stacktrace, stacktrace_padding)
-            |> String.trim_leading()
-
-          "#{IO.ANSI.red()}Process Terminated#{IO.ANSI.reset()}: #{f_stacktrace}"
+          format_with_indent(
+            IO.ANSI.red(),
+            "Process Terminated",
+            Exception.format_stacktrace(stacktrace),
+            line_prefix_width,
+            replace_indentation: true
+          )
 
         %{DOWN: reason} ->
-          "#{IO.ANSI.red()}Process Terminated#{IO.ANSI.reset()}: #{Stringify.term(reason)}"
+          format_with_indent(
+            IO.ANSI.red(),
+            "Process Terminated",
+            Stringify.term(reason),
+            line_prefix_width
+          )
       end
 
     f_pid = Stringify.pid(pid)
