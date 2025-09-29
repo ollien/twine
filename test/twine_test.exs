@@ -624,7 +624,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
         assert TestHelper.strip_ansi(output) =~
                  "Raised Exception: {:error, %RuntimeError{message: \"oh no\"}}"
 
-        assert TestHelper.strip_ansi(output) =~ "Process Exited: nofile:5: Blah.func/3"
+        assert TestHelper.strip_ansi(output) =~ "Process Terminated: nofile:5: Blah.func/3"
         # does not check for an exception, since we explicitly are throwing one
       end
     end

@@ -23,7 +23,6 @@ defmodule Twine.Internal.TraceStrategies do
 
     fn
       {:trace, pid, :call, {module, function, args}} ->
-        # TODO: this can't be reused
         recv(recv_pid, pid, {module, function, map_args(mapper, args)})
 
       _other ->
@@ -98,10 +97,10 @@ defmodule Twine.Internal.TraceStrategies do
             Regex.replace(~r/^\s*/m, f_stacktrace, stacktrace_padding)
             |> String.trim_leading()
 
-          "#{IO.ANSI.red()}Process Exited#{IO.ANSI.reset()}: #{f_stacktrace}"
+          "#{IO.ANSI.red()}Process Terminated#{IO.ANSI.reset()}: #{f_stacktrace}"
 
         %{DOWN: reason} ->
-          "#{IO.ANSI.red()}Process Exited#{IO.ANSI.reset()}: #{Stringify.term(reason)}"
+          "#{IO.ANSI.red()}Process Terminated#{IO.ANSI.reset()}: #{Stringify.term(reason)}"
       end
 
     f_pid = Stringify.pid(pid)
@@ -112,7 +111,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     # Must convert this to a charlist so Erlang shows the unicode chars correctly
     String.to_charlist(
-      "#{timestamp} ┌ #{f_pid} - #{f_call}\n" <>
+      "#{timestamp} #{f_pid} - #{f_call}\n" <>
         "#{timestamp_padding} ├ #{outcome_msg}\n" <>
         "#{timestamp_padding} └ #{return_msg}\n"
     )
