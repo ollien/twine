@@ -276,7 +276,7 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      test "cannot pass a mapper of incorrect arity" do
+      test "cannot pass an args mapper of incorrect arity" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -636,6 +636,52 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
 
         assert TestHelper.strip_ansi(output) =~ "Process Terminated: nofile:5: Blah.func/3"
         # does not check for an exception, since we explicitly are throwing one
+      end
+
+      test "can remap return value" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                "hello"
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, return_mapper: &String.upcase/1)
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        assert TestHelper.strip_ansi(output) =~ "Returned: \"HELLO\""
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "cannot pass a mapper of incorrect arity" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              Blah.func(_arg1, _arg2, _arg3),
+              1,
+              return_mapper: fn a, b -> nil end
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Return mapper function must have an arity of 1"
+
+        refute TestHelper.has_exception?(output)
       end
     end
   end

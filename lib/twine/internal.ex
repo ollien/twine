@@ -136,9 +136,11 @@ defmodule Twine.Internal do
 
   defp do_trace_calls(spec, num_args, rate, select_strategy, opts) do
     {arg_mapper, opts} = Keyword.pop(opts, :arg_mapper, nil)
+    {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
 
-    with :ok <- validate_arg_mapper(arg_mapper, num_args) do
-      format_fn = select_strategy.(arg_mapper: arg_mapper)
+    with :ok <- validate_arg_mapper(arg_mapper, num_args),
+         :ok <- validate_return_mapper(return_mapper) do
+      format_fn = select_strategy.(arg_mapper: arg_mapper, return_mapper: return_mapper)
 
       recon_opts =
         opts
@@ -190,16 +192,32 @@ defmodule Twine.Internal do
     end
   end
 
-  defp validate_arg_mapper(nil, _num_args) do
-    :ok
+  defp validate_arg_mapper(mapper, num_args) do
+    if valid_mapper?(mapper, num_args) do
+      :ok
+    else
+      {:error, "Argument mapper function must have the same arity as traced function"}
+    end
   end
 
-  defp validate_arg_mapper(mapper, num_args) when is_function(mapper, num_args) do
-    :ok
+  defp validate_return_mapper(mapper) do
+    if valid_mapper?(mapper, 1) do
+      :ok
+    else
+      {:error, "Return mapper function must have an arity of 1"}
+    end
   end
 
-  defp validate_arg_mapper(_mapper, num_args) when is_integer(num_args) do
-    {:error, "Argument mapper function must have the same arity as traced function"}
+  defp valid_mapper?(nil, _num_args) do
+    true
+  end
+
+  defp valid_mapper?(mapper, num_args) when is_function(mapper, num_args) do
+    true
+  end
+
+  defp valid_mapper?(_mapper, num_args) when is_integer(num_args) do
+    false
   end
 
   def match_output(0) do
