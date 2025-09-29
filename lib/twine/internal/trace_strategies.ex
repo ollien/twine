@@ -89,7 +89,7 @@ defmodule Twine.Internal.TraceStrategies do
   end
 
   defp print_tracked_message(pid, {module, function, args}, events) do
-    timestamp = "#{DateTime.utc_now()}]"
+    timestamp = "[#{DateTime.utc_now()}]"
     timestamp_padding = String.duplicate(" ", String.length(timestamp))
 
     outcome_msg =
