@@ -39,7 +39,11 @@ defmodule TestHelper do
       File.write!(iex_file_path, code)
 
       {out, 0} =
-        System.cmd("iex", ["-S", "mix"], env: [{"IEX_HOME", dir}], stderr_to_stdout: true)
+        System.cmd("iex", ["-S", "mix"],
+          # Run in test mode so we can reuse the already compiled artifact in async tests
+          env: [{"IEX_HOME", dir}, {"MIX_ENV", "test"}],
+          stderr_to_stdout: true
+        )
 
       Regex.replace(~r/^.*BEGIN TWINE TEST\n/s, out, "", global: false)
     end
