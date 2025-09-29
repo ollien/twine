@@ -11,7 +11,7 @@ defmodule Twine.TraceMacroCase do
 
   using(opts) do
     macro_name = Keyword.fetch!(opts, :macro_name)
-    generate_output = Keyword.fetch!(opts, :generate_output)
+    {generate_output, []} = Code.eval_quoted(Keyword.fetch!(opts, :generate_output))
     base_opts = Keyword.fetch!(opts, :base_opts)
 
     quote do
@@ -523,7 +523,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
 
   using(opts) do
     macro_name = Keyword.fetch!(opts, :macro_name)
-    generate_output = Keyword.fetch!(opts, :generate_output)
+    {generate_output, []} = Code.eval_quoted(Keyword.fetch!(opts, :generate_output))
 
     quote do
       require TestHelper
@@ -635,163 +635,38 @@ defmodule Twine.PrintCallsTestTracked do
   use Twine.TraceMacroCase,
     macro_name: :print_calls,
     base_opts: [],
-    generate_output:
-      (quote do
-         # Give recon_trace some time to print the call before IEx exits
-         Process.sleep(250)
-       end)
+    generate_output: TestHelper.generate_print_output_ast()
 end
 
 defmodule Twine.PrintCallsTestSimple do
   use Twine.TraceMacroCase,
     macro_name: :print_calls,
     base_opts: [ignore_outcome: true],
-    generate_output:
-      (quote do
-         # Give recon_trace some time to print the call before IEx exits
-         Process.sleep(250)
-       end)
+    generate_output: TestHelper.generate_print_output_ast()
 end
 
 defmodule Twine.TrackedOnlyPrintCallsTest do
   use Twine.TrackedOnlyTraceMacroCase,
     macro_name: :print_calls,
-    generate_output:
-      (quote do
-         # Give recon_trace some time to print the call before IEx exits
-         Process.sleep(250)
-       end)
+    generate_output: TestHelper.generate_print_output_ast()
 end
-
-# TODO: dedupe the generate_output here - I struggled to do so and decided it wasn't worth it
 
 defmodule Twine.RecvCallsTestTracked do
   use Twine.TraceMacroCase,
     macro_name: :recv_calls,
     base_opts: [],
-    # We can't use recursion in this macro expansion, so we cheat a little bit by using
-    # Stream.repeatedly and Enum.reduce_while
-    generate_output:
-      (quote do
-         Stream.repeatedly(fn -> nil end)
-         |> Enum.reduce_while(nil, fn nil, nil ->
-           receive do
-             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: outcome} when is_pid(pid) ->
-               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
-
-               case outcome do
-                 %Twine.TracedCallReturned{
-                   return_value: return_value,
-                   return_to: {return_m, return_f, return_a}
-                 } ->
-                   IO.puts("Returned: #{inspect(return_value)}")
-                   IO.inspect("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
-
-                 %Twine.TracedCallExceptionCaught{
-                   exception: exception,
-                   return_to: {return_m, return_f, return_a}
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
-
-                 %Twine.TracedCallCrashed{
-                   exception: exception,
-                   exit_reason: {_error, stack}
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-
-                   IO.puts(
-                     "Process Terminated: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
-                   )
-
-                 %Twine.TracedCallCrashed{
-                   exception: exception,
-                   exit_reason: reason
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Process Terminated: #{inspect(reason)}")
-               end
-
-               {:cont, nil}
-           after
-             250 -> {:halt, nil}
-           end
-         end)
-       end)
+    generate_output: TestHelper.generate_tracked_recv_output_ast()
 end
 
 defmodule Twine.RecvCallsTestSimple do
   use Twine.TraceMacroCase,
     macro_name: :recv_calls,
     base_opts: [ignore_outcome: true],
-    # We can't use recursion in this macro expansion, so we cheat a little bit by using
-    # Stream.repeatedly and Enum.reduce_while
-    generate_output:
-      (quote do
-         Stream.repeatedly(fn -> nil end)
-         |> Enum.reduce_while(nil, fn nil, nil ->
-           receive do
-             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: nil} when is_pid(pid) ->
-               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
-
-               {:cont, nil}
-           after
-             250 -> {:halt, nil}
-           end
-         end)
-       end)
+    generate_output: TestHelper.generate_simple_recv_output_ast()
 end
 
 defmodule Twine.TrackedOnlyRecvCallsTest do
   use Twine.TrackedOnlyTraceMacroCase,
     macro_name: :recv_calls,
-    # We can't use recursion in this macro expansion, so we cheat a little bit by using
-    # Stream.repeatedly and Enum.reduce_while
-    generate_output:
-      (quote do
-         Stream.repeatedly(fn -> nil end)
-         |> Enum.reduce_while(nil, fn nil, nil ->
-           receive do
-             %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: outcome} when is_pid(pid) ->
-               IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
-
-               case outcome do
-                 %Twine.TracedCallReturned{
-                   return_value: return_value,
-                   return_to: {return_m, return_f, return_a}
-                 } ->
-                   IO.puts("Returned: #{inspect(return_value)}")
-                   IO.inspect("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
-
-                 %Twine.TracedCallExceptionCaught{
-                   exception: exception,
-                   return_to: {return_m, return_f, return_a}
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
-
-                 %Twine.TracedCallCrashed{
-                   exception: exception,
-                   exit_reason: {_error, stack}
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-
-                   IO.puts(
-                     "Process Terminated: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
-                   )
-
-                 %Twine.TracedCallCrashed{
-                   exception: exception,
-                   exit_reason: reason
-                 } ->
-                   IO.puts("Raised Exception: #{inspect(exception)}")
-                   IO.puts("Process Terminated: #{inspect(reason)}")
-               end
-
-               {:cont, nil}
-           after
-             250 -> {:halt, nil}
-           end
-         end)
-       end)
+    generate_output: TestHelper.generate_tracked_recv_output_ast()
 end

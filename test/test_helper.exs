@@ -52,6 +52,82 @@ defmodule TestHelper do
   def has_exception?(output) do
     output =~ "raised an exception"
   end
+
+  def generate_print_output_ast() do
+    quote do
+      # Give recon_trace some time to print the call before IEx exits
+      Process.sleep(250)
+    end
+  end
+
+  def generate_tracked_recv_output_ast() do
+    # We can't use recursion in this macro expansion, so we cheat a little bit by using
+    # Stream.repeatedly and Enum.reduce_while
+    quote do
+      Stream.repeatedly(fn -> nil end)
+      |> Enum.reduce_while(nil, fn nil, nil ->
+        receive do
+          %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: outcome} when is_pid(pid) ->
+            IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
+
+            case outcome do
+              %Twine.TracedCallReturned{
+                return_value: return_value,
+                return_to: {return_m, return_f, return_a}
+              } ->
+                IO.puts("Returned: #{inspect(return_value)}")
+                IO.inspect("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+              %Twine.TracedCallExceptionCaught{
+                exception: exception,
+                return_to: {return_m, return_f, return_a}
+              } ->
+                IO.puts("Raised Exception: #{inspect(exception)}")
+                IO.puts("Returned to: #{inspect(return_m)}.#{return_f}/#{return_a}")
+
+              %Twine.TracedCallCrashed{
+                exception: exception,
+                exit_reason: {_error, stack}
+              } ->
+                IO.puts("Raised Exception: #{inspect(exception)}")
+
+                IO.puts(
+                  "Process Terminated: #{stack |> Exception.format_stacktrace() |> String.trim_leading()}"
+                )
+
+              %Twine.TracedCallCrashed{
+                exception: exception,
+                exit_reason: reason
+              } ->
+                IO.puts("Raised Exception: #{inspect(exception)}")
+                IO.puts("Process Terminated: #{inspect(reason)}")
+            end
+
+            {:cont, nil}
+        after
+          250 -> {:halt, nil}
+        end
+      end)
+    end
+  end
+
+  def generate_simple_recv_output_ast() do
+    # We can't use recursion in this macro expansion, so we cheat a little bit by using
+    # Stream.repeatedly and Enum.reduce_while
+    quote do
+      Stream.repeatedly(fn -> nil end)
+      |> Enum.reduce_while(nil, fn nil, nil ->
+        receive do
+          %Twine.TracedCall{pid: pid, mfa: {m, f, a}, outcome: nil} when is_pid(pid) ->
+            IO.puts("#{inspect(m)}.#{f}(#{Enum.join(a, ", ")})")
+
+            {:cont, nil}
+        after
+          250 -> {:halt, nil}
+        end
+      end)
+    end
+  end
 end
 
 ExUnit.start()
