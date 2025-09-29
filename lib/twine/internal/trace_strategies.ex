@@ -44,10 +44,11 @@ defmodule Twine.Internal.TraceStrategies do
   """
   def tracked_print(opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
+    return_mapper = Keyword.get(opts, :return_mapper)
 
     {:ok, tracker} =
       CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, &print_tracked_message/3, arg_mapper)
+        handle_calltracker_result(result, &print_tracked_message/3, arg_mapper, return_mapper)
       end)
 
     fn
@@ -64,6 +65,7 @@ defmodule Twine.Internal.TraceStrategies do
   """
   def tracked_recv(recv_pid, opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
+    return_mapper = Keyword.get(opts, :return_mapper)
 
     recv = fn call_pid, mfa, events ->
       recv(recv_pid, call_pid, mfa, events)
@@ -74,7 +76,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     {:ok, tracker} =
       CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, recv, arg_mapper)
+        handle_calltracker_result(result, recv, arg_mapper, return_mapper)
       end)
 
     fn
@@ -170,7 +172,7 @@ defmodule Twine.Internal.TraceStrategies do
     send(recv_pid, msg)
   end
 
-  defp handle_calltracker_result(result, format_action, arg_mapper) do
+  defp handle_calltracker_result(result, format_action, arg_mapper, return_mapper) do
     case result do
       {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
         Enum.each(warnings, &print_event_warning/1)
@@ -183,6 +185,8 @@ defmodule Twine.Internal.TraceStrategies do
         }
       } ->
         Enum.each(warnings, &print_event_warning/1)
+
+        events = map_events(events, return_mapper)
 
         format_action.(pid, {module, function, map_args(arg_mapper, args)}, events)
         |> IO.puts()
@@ -205,6 +209,18 @@ defmodule Twine.Internal.TraceStrategies do
       is_list(res) -> res
       is_tuple(res) -> Tuple.to_list(res)
     end
+  end
+
+  defp map_events(%{} = events, return_mapper) do
+    events
+    |> Enum.map(fn
+      {:return_from, return_value} when not is_nil(return_mapper) ->
+        {:return_from, return_mapper.(return_value)}
+
+      other ->
+        other
+    end)
+    |> Map.new()
   end
 
   defp print_event_warning({:overwrote_call, pid, {module, function, args}}) do

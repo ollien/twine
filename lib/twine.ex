@@ -69,13 +69,19 @@ defmodule Twine do
 
   Options:
   - `pid`: the pid to print calls for. If omitted, this will run for all pids
-  on the system
-  - `arg_mapper`: A function to map the output before printing it. This can be 
-  useful if you are tracing a call on a function that has a very large argument
-  (such as a `GenServer`'s state), and want to reduce it down
-  before printing it. This function must have the same arity as
-  the captured function, and return a list or tuple of the mapped
-  arguments.
+  on the system.
+  - `arg_mapper`: A function to map the arguments of the function before
+  printing it. This can be useful if you are tracing a call on a function that
+  has a very large argument (such as a `GenServer`'s state), and want to reduce
+  it down before printing it. This function must have the same arity as the
+  captured function, and return a list or tuple of the mapped arguments.
+  - `return_mapper`: A function to map the return value of a function before
+  printing it. This can be useful if you are tracing a call on a function that
+  has a very large return value, and want to reduce it down before printing it.
+  This function must have an arity of 1, and return the value directly. If this
+  is supplied with `ignore_outcome: true`, it will not be called.
+  - `ignore_outcome`: If true, calls are printed immediately, without waiting
+  for their return value or a process termination. Defaults to false.
   """
   defmacro print_calls(call, rate, opts \\ []) do
     Internal.run(call, fn matchspec_ast, num_args ->
