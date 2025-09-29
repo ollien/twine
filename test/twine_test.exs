@@ -633,6 +633,7 @@ end
 
 defmodule Twine.PrintCallsTestTracked do
   use Twine.TraceMacroCase,
+    async: true,
     macro_name: :print_calls,
     base_opts: [],
     generate_output: TestHelper.generate_print_output_ast()
@@ -640,6 +641,7 @@ end
 
 defmodule Twine.PrintCallsTestSimple do
   use Twine.TraceMacroCase,
+    async: true,
     macro_name: :print_calls,
     base_opts: [ignore_outcome: true],
     generate_output: TestHelper.generate_print_output_ast()
@@ -647,12 +649,14 @@ end
 
 defmodule Twine.TrackedOnlyPrintCallsTest do
   use Twine.TrackedOnlyTraceMacroCase,
+    async: true,
     macro_name: :print_calls,
     generate_output: TestHelper.generate_print_output_ast()
 end
 
 defmodule Twine.RecvCallsTestTracked do
   use Twine.TraceMacroCase,
+    async: true,
     macro_name: :recv_calls,
     base_opts: [],
     generate_output: TestHelper.generate_tracked_recv_output_ast()
@@ -660,6 +664,7 @@ end
 
 defmodule Twine.RecvCallsTestSimple do
   use Twine.TraceMacroCase,
+    async: true,
     macro_name: :recv_calls,
     base_opts: [ignore_outcome: true],
     generate_output: TestHelper.generate_simple_recv_output_ast()
@@ -667,6 +672,7 @@ end
 
 defmodule Twine.TrackedOnlyRecvCallsTest do
   use Twine.TrackedOnlyTraceMacroCase,
+    async: true,
     macro_name: :recv_calls,
     generate_output: TestHelper.generate_tracked_recv_output_ast()
 end

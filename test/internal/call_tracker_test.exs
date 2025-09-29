@@ -1,7 +1,7 @@
 defmodule Twine.Internal.CallTrackerTest do
   alias Twine.Internal.CallTracker
 
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   def send_to(self_pid) do
     fn result ->
