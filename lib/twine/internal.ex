@@ -3,6 +3,10 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
+  defguardp is_integer_pair(value)
+            when is_tuple(value) and tuple_size(value) == 2 and
+                   is_integer(elem(value, 0)) and is_integer(elem(value, 1))
+
   alias Twine.Internal.TraceStrategies
 
   def run(call_ast, func) do
@@ -21,7 +25,7 @@ defmodule Twine.Internal do
     end
   end
 
-  def do_print_calls(spec, num_args, rate, opts) do
+  def do_print_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
     {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, false)
 
     if ignore_outcome do
