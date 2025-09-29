@@ -70,7 +70,7 @@ defmodule Twine do
   Options:
   - `pid`: the pid to print calls for. If omitted, this will run for all pids
   on the system
-  - `mapper`: A function to map the output before printing it. This can be 
+  - `arg_mapper`: A function to map the output before printing it. This can be 
   useful if you are tracing a call on a function that has a very large argument
   (such as a `GenServer`'s state), and want to reduce it down
   before printing it. This function must have the same arity as

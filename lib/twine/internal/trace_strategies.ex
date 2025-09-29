@@ -10,11 +10,11 @@ defmodule Twine.Internal.TraceStrategies do
   The "simple print" strategy prints the call without waiting for any results.
   """
   def simple_print(opts \\ []) do
-    mapper = Keyword.get(opts, :mapper)
+    arg_mapper = Keyword.get(opts, :arg_mapper)
 
     fn
       {:trace, pid, :call, {module, function, args}} ->
-        print_simple_message(pid, {module, function, map_args(mapper, args)})
+        print_simple_message(pid, {module, function, map_args(arg_mapper, args)})
 
       _other ->
         :ok
@@ -25,11 +25,11 @@ defmodule Twine.Internal.TraceStrategies do
   The "simple recv" strategy sends the call without waiting for any results.
   """
   def simple_recv(recv_pid, opts \\ []) do
-    mapper = Keyword.get(opts, :mapper)
+    arg_mapper = Keyword.get(opts, :arg_mapper)
 
     fn
       {:trace, pid, :call, {module, function, args}} ->
-        recv(recv_pid, pid, {module, function, map_args(mapper, args)})
+        recv(recv_pid, pid, {module, function, map_args(arg_mapper, args)})
 
       _other ->
         :ok
@@ -40,11 +40,11 @@ defmodule Twine.Internal.TraceStrategies do
   The "tracked print" strategy prints the call and waits for results.
   """
   def tracked_print(opts \\ []) do
-    mapper = Keyword.get(opts, :mapper)
+    arg_mapper = Keyword.get(opts, :arg_mapper)
 
     {:ok, tracker} =
       CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, &print_tracked_message/3, mapper)
+        handle_calltracker_result(result, &print_tracked_message/3, arg_mapper)
       end)
 
     fn
@@ -60,7 +60,7 @@ defmodule Twine.Internal.TraceStrategies do
   The "tracked recv" strategy sends the call and waits for results.
   """
   def tracked_recv(recv_pid, opts \\ []) do
-    mapper = Keyword.get(opts, :mapper)
+    arg_mapper = Keyword.get(opts, :arg_mapper)
 
     recv = fn call_pid, mfa, events ->
       recv(recv_pid, call_pid, mfa, events)
@@ -68,7 +68,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     {:ok, tracker} =
       CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, recv, mapper)
+        handle_calltracker_result(result, recv, arg_mapper)
       end)
 
     fn
@@ -167,7 +167,7 @@ defmodule Twine.Internal.TraceStrategies do
     ""
   end
 
-  defp handle_calltracker_result(result, format_action, mapper) do
+  defp handle_calltracker_result(result, format_action, arg_mapper) do
     case result do
       {:ok, %CallTracker.Result{status: :not_ready, warnings: warnings}} ->
         Enum.each(warnings, &print_event_warning/1)
@@ -181,7 +181,7 @@ defmodule Twine.Internal.TraceStrategies do
       } ->
         Enum.each(warnings, &print_event_warning/1)
 
-        format_action.(pid, {module, function, map_args(mapper, args)}, events)
+        format_action.(pid, {module, function, map_args(arg_mapper, args)}, events)
         |> IO.puts()
 
       {:error, reason} ->

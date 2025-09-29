@@ -229,7 +229,7 @@ defmodule Twine.TraceMacroCase do
               Blah.func(_arg1, _arg2, _arg3),
               1,
               [
-                mapper: fn a, b, c ->
+                arg_mapper: fn a, b, c ->
                   [a * 1, b * 2, c * 3]
                 end
               ] ++
@@ -260,7 +260,7 @@ defmodule Twine.TraceMacroCase do
               Blah.func(_arg1, _arg2, _arg3),
               1,
               [
-                mapper: fn a, b, c ->
+                arg_mapper: fn a, b, c ->
                   {a * 1, b * 2, c * 3}
                 end
               ] ++
@@ -291,7 +291,7 @@ defmodule Twine.TraceMacroCase do
               Blah.func(_arg1, _arg2, _arg3),
               1,
               [
-                mapper: fn a ->
+                arg_mapper: fn a ->
                   {a}
                 end
               ] ++ unquote(base_opts)
@@ -299,7 +299,7 @@ defmodule Twine.TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~
-                 "Mapper function must have the same arity as traced function"
+                 "Argument mapper function must have the same arity as traced function"
 
         refute TestHelper.has_exception?(output)
       end
@@ -427,7 +427,7 @@ defmodule Twine.TraceMacroCase do
               Blah.func(^x, _arg2, _arg3),
               1,
               [
-                mapper: fn a ->
+                arg_mapper: fn a ->
                   {a}
                 end
               ] ++ unquote(base_opts)
@@ -458,7 +458,7 @@ defmodule Twine.TraceMacroCase do
               Blah.func(z, _arg2, _arg3) when y == x or y == z,
               1,
               [
-                mapper: fn a ->
+                arg_mapper: fn a ->
                   {a}
                 end
               ] ++ unquote(base_opts)
