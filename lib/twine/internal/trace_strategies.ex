@@ -6,6 +6,9 @@ defmodule Twine.Internal.TraceStrategies do
   alias Twine.Internal.CallTracker
   alias Twine.Internal.Stringify
 
+  @doc """
+  The "simple print" strategy prints the call without waiting for any results.
+  """
   def simple_print(opts \\ []) do
     mapper = Keyword.get(opts, :mapper)
 
@@ -18,6 +21,9 @@ defmodule Twine.Internal.TraceStrategies do
     end
   end
 
+  @doc """
+  The "simple recv" strategy sends the call without waiting for any results.
+  """
   def simple_recv(recv_pid, opts \\ []) do
     mapper = Keyword.get(opts, :mapper)
 
@@ -30,6 +36,9 @@ defmodule Twine.Internal.TraceStrategies do
     end
   end
 
+  @doc """
+  The "tracked print" strategy prints the call and waits for results.
+  """
   def tracked_print(opts \\ []) do
     mapper = Keyword.get(opts, :mapper)
 
@@ -47,6 +56,9 @@ defmodule Twine.Internal.TraceStrategies do
     end
   end
 
+  @doc """
+  The "tracked recv" strategy sends the call and waits for results.
+  """
   def tracked_recv(recv_pid, opts \\ []) do
     mapper = Keyword.get(opts, :mapper)
 
