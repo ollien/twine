@@ -25,7 +25,7 @@ defmodule Twine.MixProject do
   def package do
     [
       licenses: ["BSD-3-Clause"],
-      links: %{"repostitory" => "https://github.com/ollien/twine"}
+      links: %{"Repository" => "https://github.com/ollien/twine"}
     ]
   end
 
