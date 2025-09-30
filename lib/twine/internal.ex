@@ -88,8 +88,8 @@ defmodule Twine.Internal do
     end
   end
 
-  # End list will always be two elements
-  # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/src/https://github.com/elixir-lang/elixir/blob/f93919f54a79fb523315e84c6f46899c66fe03fe/lib/elixir/src/elixir_parser.yrl#L1153-L1159elixir_parser.yrl#L1153-L1159
+  # End list will always be two elements since we have no vars preceding the guard
+  # https://github.com/elixir-lang/elixir/blob/23776d9e8f8c1c87bc012ff501340c1c75800323/lib/elixir/src/elixir_parser.yrl#L1153-L1159
   defp decompose_match_call({:when, _meta, [call, condition]}) do
     {
       Macro.decompose_call(call),
@@ -97,11 +97,35 @@ defmodule Twine.Internal do
     }
   end
 
+  # End list will always be two elements
+  # https://github.com/elixir-lang/elixir/blob/23776d9e8f8c1c87bc012ff501340c1c75800323/lib/elixir/src/elixir_parser.yrl#L758-L759
+  defp decompose_match_call(
+         {:&, _meta1,
+          [
+            {:/, _meta2, [call, arity]}
+          ]}
+       ) do
+    with {module, function, []} <- Macro.decompose_call(call) do
+      {
+        {module, function, generate_fake_args(arity)},
+        nil
+      }
+    end
+  end
+
   defp decompose_match_call(call) do
     {
       Macro.decompose_call(call),
       nil
     }
+  end
+
+  defp generate_fake_args(num_args) do
+    Stream.iterate(0, fn n -> n + 1 end)
+    # Makes fake identifiers with the name _arg<n>
+    |> Stream.map(fn n -> {String.to_atom("_arg#{n}"), [], nil} end)
+    |> Stream.take(num_args)
+    |> Enum.to_list()
   end
 
   defp preprocess_args(args, ignore) do

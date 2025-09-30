@@ -118,6 +118,27 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
+      test "allows matching with &function/arity syntax" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(&Blah.func/3, 1, unquote(base_opts))
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1, 2, 3)"
+        refute TestHelper.has_exception?(output)
+      end
+
       test "does not print anything if the pattern does not match" do
         output =
           TestHelper.iex_run do
