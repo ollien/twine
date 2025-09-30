@@ -164,7 +164,7 @@ defmodule Twine.Internal.TraceStrategies do
     f_pid = "#{IO.ANSI.light_red()}#{inspect(pid)}#{IO.ANSI.reset()}"
 
     f_call =
-      Stringify.call(module, function, args)
+      Stringify.multiline_call(module, function, args)
       # Escape tildes for erlang
       |> String.replace("~", "~~")
 
