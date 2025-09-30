@@ -135,4 +135,3 @@ defmodule TestHelper do
 end
 
 ExUnit.start()
-Mneme.start()

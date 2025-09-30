@@ -11,8 +11,7 @@ defmodule Twine.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
-      docs: docs(),
-      preferred_cli_env: ["mneme.test": :test, "mneme.watch": :test]
+      docs: docs()
     ]
   end
 
@@ -44,7 +43,6 @@ defmodule Twine.MixProject do
     [
       {:recon, "~> 2.5.6"},
       {:temp, "~> 0.4.9", only: :test},
-      {:mneme, ">= 0.10.1", only: [:dev, :test]},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
