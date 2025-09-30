@@ -10,10 +10,9 @@ defmodule Twine.Internal do
   alias Twine.Internal.TraceStrategies
 
   def run(call_ast, func) do
-    {{m, f, a}, guard_clause} = decompose_match_call(call_ast)
-    skip_preprocessing_args = args_to_skip_preprocessing(a, guard_clause)
-
-    with {:ok, a} <- preprocess_args(a, skip_preprocessing_args),
+    with {:ok, {{m, f, a}, guard_clause}} <- decompose_match_call(call_ast),
+         skip_preprocessing_args = args_to_skip_preprocessing(a, guard_clause),
+         {:ok, a} <- preprocess_args(a, skip_preprocessing_args),
          :ok <- validate_guard_identifiers(a, guard_clause) do
       matchspec_ast = make_matchspec_ast({m, f, a}, guard_clause)
       func.(matchspec_ast, Enum.count(a))
@@ -88,36 +87,50 @@ defmodule Twine.Internal do
     end
   end
 
-  # End list will always be two elements since we have no vars preceding the guard
+  # End list for guards will always be two elements since we have no vars preceding the guard
   # https://github.com/elixir-lang/elixir/blob/23776d9e8f8c1c87bc012ff501340c1c75800323/lib/elixir/src/elixir_parser.yrl#L1153-L1159
-  defp decompose_match_call({:when, _meta, [call, condition]}) do
-    {
-      Macro.decompose_call(call),
-      condition
-    }
+  defp decompose_match_call({:when, _meta1, [{:&, _meta2, _capture}, _condition]}) do
+    {:error, "Guards cannot be used with function capture syntax."}
   end
 
-  # End list will always be two elements
+  defp decompose_match_call({:when, _meta, [call_ast, condition]}) do
+    with {:ok, decomposed_call} <- decompose_call(call_ast) do
+      {:ok,
+       {
+         decomposed_call,
+         condition
+       }}
+    end
+  end
+
+  # End list for captures will always be two elements
   # https://github.com/elixir-lang/elixir/blob/23776d9e8f8c1c87bc012ff501340c1c75800323/lib/elixir/src/elixir_parser.yrl#L758-L759
   defp decompose_match_call(
          {:&, _meta1,
           [
-            {:/, _meta2, [call, arity]}
+            {:/, _meta2, [call_ast, arity]}
           ]}
        ) do
-    with {module, function, []} <- Macro.decompose_call(call) do
-      {
-        {module, function, generate_fake_args(arity)},
-        nil
-      }
+    with {:ok, {module, function, []}} <- decompose_call(call_ast) do
+      {:ok,
+       {
+         {module, function, generate_fake_args(arity)},
+         nil
+       }}
     end
   end
 
-  defp decompose_match_call(call) do
-    {
-      Macro.decompose_call(call),
-      nil
-    }
+  defp decompose_match_call(call_ast) do
+    with {:ok, decomposed_call} <- decompose_call(call_ast) do
+      {:ok, {decomposed_call, nil}}
+    end
+  end
+
+  defp decompose_call(ast) do
+    case Macro.decompose_call(ast) do
+      :error -> {:error, "Invalid call specification"}
+      decomposed -> {:ok, decomposed}
+    end
   end
 
   defp generate_fake_args(num_args) do

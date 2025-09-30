@@ -492,6 +492,29 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
+      test "cannot pass guard with capture syntax" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              (&Blah.func/3) when is_integer(x),
+              1
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Guards cannot be used with function capture syntax."
+
+        refute TestHelper.has_exception?(output)
+      end
+
       test "calling clear stops tracing" do
         output =
           TestHelper.iex_run do
