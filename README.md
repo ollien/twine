@@ -36,7 +36,7 @@ More details are provided in the hex docs.
 ```elixir
 def deps do
   [
-    {:twine, "~> 0.2.0"}
+    {:twine, "~> 0.4.0"}
   ]
 end
 ```
