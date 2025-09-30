@@ -5,6 +5,12 @@ defmodule Twine do
   alias Twine.Internal
 
   defmodule TracedCall do
+    @doc """
+    A call that has been send to the shell via recv_calls. If `ignore_outcome:
+    true` was provided, `outcome` will always be nil. Otherwise, it will
+    contain the outcome of the traced call. 
+    """
+
     @type t :: %__MODULE__{
             pid: pid(),
             mfa: {module(), atom(), [any()]},
