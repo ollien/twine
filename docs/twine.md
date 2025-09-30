@@ -1,10 +1,10 @@
 # Twine
 
-Twine allows you to safely introspect calls on a running Elixir system. Under a
-hood, it wraps [`recon_trace`](https://ferd.github.io/recon/recon_trace.html),
-a battle-tested library by the venerable Ferd, with some adaptations to make it
-more useful for Elixir systems by providing better ergonomics and
-Elixir-flavored output.
+Twine allows you to safely introspect calls on a running Elixir system. Under
+the hood, it wraps
+[`recon_trace`](https://ferd.github.io/recon/recon_trace.html), a battle-tested
+library by the venerable Ferd, with some adaptations to make it more useful for
+Elixir systems by providing better ergonomics and Elixir-flavored output.
 
 ## Background
 Out of the box, Erlang provides
