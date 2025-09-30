@@ -37,6 +37,43 @@ defmodule Twine.Internal.Stringify do
     )
   end
 
+  def decorated_block(
+         color,
+         prefix,
+         formatted_value,
+         pre_decoration_width,
+         decoration_char,
+         opts \\ []
+       ) do
+    pre_decoration_padding = String.duplicate(" ", pre_decoration_width)
+    decoration = " #{decoration_char} "
+
+    edge_char =
+      if Keyword.get(opts, :decorate_edge, false) do
+        "│"
+      else
+        " "
+      end
+
+    continuation_padding =
+      pre_decoration_padding <>
+        " #{edge_char} " <>
+        String.duplicate(" ", String.length(prefix) + 2)
+
+    formatted_value =
+      formatted_value
+      |> String.trim_leading()
+      |> then(fn value ->
+        if Keyword.get(opts, :replace_indentation, false) do
+          Regex.replace(~r/\n\s*/, value, "\n" <> continuation_padding)
+        else
+          Regex.replace(~r/\n(\s*)/, value, "\n" <> continuation_padding <> "\\1")
+        end
+      end)
+
+    "#{pre_decoration_padding}#{decoration}#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
+  end
+
   defp module(module) do
     # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
     "#{IO.ANSI.cyan()}#{inspect(module)}#{IO.ANSI.reset()}"

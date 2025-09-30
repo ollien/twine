@@ -95,7 +95,7 @@ defmodule Twine.Internal.TraceStrategies do
     outcome_msg =
       case events do
         %{return_from: return_from} ->
-          format_tracked_block(
+          Stringify.decorated_block(
             IO.ANSI.cyan(),
             "Returned",
             Stringify.term(return_from),
@@ -105,7 +105,7 @@ defmodule Twine.Internal.TraceStrategies do
           )
 
         %{exception_from: exception_from} ->
-          format_tracked_block(
+          Stringify.decorated_block(
             IO.ANSI.red(),
             "Raised Exception",
             Stringify.term(exception_from),
@@ -118,7 +118,7 @@ defmodule Twine.Internal.TraceStrategies do
     return_msg =
       case events do
         %{return_to: {return_module, return_function, return_args}} ->
-          format_tracked_block(
+          Stringify.decorated_block(
             IO.ANSI.cyan(),
             "Returned to",
             Stringify.call(return_module, return_function, return_args),
@@ -128,7 +128,7 @@ defmodule Twine.Internal.TraceStrategies do
 
         # If we have a DOWN, we probably have the error in the exception
         %{DOWN: {_error, stacktrace}} ->
-          format_tracked_block(
+          Stringify.decorated_block(
             IO.ANSI.red(),
             "Process Terminated",
             Exception.format_stacktrace(stacktrace),
@@ -138,7 +138,7 @@ defmodule Twine.Internal.TraceStrategies do
           )
 
         %{DOWN: reason} ->
-          format_tracked_block(
+          Stringify.decorated_block(
             IO.ANSI.red(),
             "Process Terminated",
             Stringify.term(reason),
@@ -220,43 +220,6 @@ defmodule Twine.Internal.TraceStrategies do
     end
 
     :ok
-  end
-
-  defp format_tracked_block(
-         color,
-         prefix,
-         formatted_value,
-         timestamp_width,
-         decoration_char,
-         opts \\ []
-       ) do
-    timestamp_padding = String.duplicate(" ", timestamp_width)
-    decoration = " #{decoration_char} "
-
-    edge_char =
-      if Keyword.get(opts, :decorate_edge, false) do
-        "│"
-      else
-        " "
-      end
-
-    continuation_padding =
-      timestamp_padding <>
-        " #{edge_char} " <>
-        String.duplicate(" ", String.length(prefix) + 2)
-
-    formatted_value =
-      formatted_value
-      |> String.trim_leading()
-      |> then(fn value ->
-        if Keyword.get(opts, :replace_identation, false) do
-          Regex.replace(~r/^\s+/m, value, continuation_padding)
-        else
-          Regex.replace(~r/^(\s+)/m, value, continuation_padding <> "\\1")
-        end
-      end)
-
-    "#{timestamp_padding}#{decoration}#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
   end
 
   defp map_args(nil, args) do
