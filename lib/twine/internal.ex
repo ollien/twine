@@ -181,12 +181,12 @@ defmodule Twine.Internal do
 
     with :ok <- validate_arg_mapper(arg_mapper, num_args),
          :ok <- validate_return_mapper(return_mapper) do
-      format_fn = select_strategy.(arg_mapper: arg_mapper, return_mapper: return_mapper)
+      strategy = select_strategy.(arg_mapper: arg_mapper, return_mapper: return_mapper)
 
       recon_opts =
         opts
         |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, format_fn)
+        |> Keyword.put(:formatter, strategy.format_fn)
         |> Keyword.put(:return_to, true)
         |> Keyword.put(:scope, :local)
 
@@ -198,6 +198,11 @@ defmodule Twine.Internal do
           correct_rate(rate),
           recon_opts
         )
+
+      # If there are no matches, make sure we clean up the strategy since they can't clean themselves up
+      if matches == 0 do
+        strategy.cleanup_fn.()
+      end
 
       match_output(matches)
     else

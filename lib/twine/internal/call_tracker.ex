@@ -62,6 +62,10 @@ defmodule Twine.Internal.CallTracker do
     :ok
   end
 
+  def stop(tracker) do
+    GenServer.stop(tracker)
+  end
+
   @doc """
   Monitor the given tracer, so we can terminate with it
   """

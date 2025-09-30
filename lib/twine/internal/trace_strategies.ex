@@ -6,19 +6,35 @@ defmodule Twine.Internal.TraceStrategies do
   alias Twine.Internal.CallTracker
   alias Twine.Internal.Stringify
 
+  defmodule Strategy do
+    @moduledoc false
+
+    @enforce_keys [:format_fn, :cleanup_fn]
+    defstruct [
+      :format_fn,
+      # Strategies usually clean up on their own, but if we need to force it, this is an option. format_fn should not be used afterwards.
+      :cleanup_fn
+    ]
+  end
+
   @doc """
   The "simple print" strategy prints the call without waiting for any results.
   """
   def simple_print(opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
 
-    fn
+    format_fn = fn
       {:trace, pid, :call, {module, function, args}} ->
         print_simple_message(pid, {module, function, map_args(arg_mapper, args)})
 
       _other ->
         ""
     end
+
+    %Strategy{
+      format_fn: format_fn,
+      cleanup_fn: fn -> :ok end
+    }
   end
 
   @doc """
@@ -27,7 +43,7 @@ defmodule Twine.Internal.TraceStrategies do
   def simple_recv(recv_pid, opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
 
-    fn
+    format_fn = fn
       {:trace, pid, :call, {module, function, args}} ->
         recv(recv_pid, pid, {module, function, map_args(arg_mapper, args)})
 
@@ -37,6 +53,11 @@ defmodule Twine.Internal.TraceStrategies do
       _other ->
         ""
     end
+
+    %Strategy{
+      format_fn: format_fn,
+      cleanup_fn: fn -> :ok end
+    }
   end
 
   @doc """
@@ -51,13 +72,18 @@ defmodule Twine.Internal.TraceStrategies do
         handle_calltracker_result(result, &print_tracked_message/3, arg_mapper, return_mapper)
       end)
 
-    fn
+    format_fn = fn
       event ->
         CallTracker.handle_event(tracker, event)
 
         # recon_trace ignores "" values
         ""
     end
+
+    %Strategy{
+      format_fn: format_fn,
+      cleanup_fn: fn -> CallTracker.stop(tracker) end
+    }
   end
 
   @doc """
@@ -79,13 +105,18 @@ defmodule Twine.Internal.TraceStrategies do
         handle_calltracker_result(result, recv, arg_mapper, return_mapper)
       end)
 
-    fn
+    format_fn = fn
       event ->
         CallTracker.handle_event(tracker, event)
 
         # recon_trace ignores "" values
         ""
     end
+
+    %Strategy{
+      format_fn: format_fn,
+      cleanup_fn: fn -> CallTracker.stop(tracker) end
+    }
   end
 
   defp print_tracked_message(pid, {module, function, args}, events) do
