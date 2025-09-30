@@ -104,8 +104,9 @@ defmodule Twine do
 
   @doc """
   Identical to `print_calls/2`, but instead of printing the calls, it sends
-  them to the calling process. This will be of the form
-  `{pid, {module, function, arguments}}`.
+  them to the calling process. The message will be a `TracedCall` structure.
+  If `ignore_outcome` is specified as true, then `outcome` on the structure
+  will be `nil`.
   """
   defmacro recv_calls(call, rate, opts \\ []) do
     Internal.run(call, fn matchspec_ast, num_args ->
