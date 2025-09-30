@@ -44,7 +44,7 @@ defmodule Twine.MixProject do
     [
       {:recon, "~> 2.5.6"},
       {:temp, "~> 0.4.9", only: :test},
-      {:mneme, ">= 0.10.1", only: :test},
+      {:mneme, ">= 0.10.1", only: [:dev, :test]},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end

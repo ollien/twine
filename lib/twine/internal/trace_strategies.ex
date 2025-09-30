@@ -150,15 +150,14 @@ defmodule Twine.Internal.TraceStrategies do
     f_pid = Stringify.pid(pid)
 
     f_call =
-      Stringify.call(module, function, args)
-      |> String.replace("~", "~~")
+      Stringify.multiline_call(module, function, args)
+      # Don't need to escape tildes here since we print it ourselves
+      # Add 1 for the space before decorations on subsequent lines
+      |> Stringify.indented_block(timestamp_width + 1, dedent_first_line: true)
 
-    # Must convert this to a charlist so Erlang shows the unicode chars correctly
-    String.to_charlist(
-      "#{timestamp} #{f_pid} - #{f_call}\n" <>
-        "#{outcome_msg}\n" <>
-        "#{return_msg}\n"
-    )
+    "#{timestamp} #{f_pid} - #{f_call}\n" <>
+      "#{outcome_msg}\n" <>
+      "#{return_msg}\n"
   end
 
   defp print_simple_message(pid, {module, function, args}) do
@@ -166,6 +165,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     f_call =
       Stringify.call(module, function, args)
+      # Escape tildes for erlang
       |> String.replace("~", "~~")
 
     "[#{DateTime.utc_now()}] #{f_pid} - #{f_call}\n"

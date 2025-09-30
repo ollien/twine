@@ -27,6 +27,55 @@ defmodule Twine.Internal.Stringify do
     "#{f_module}.#{f_function}(#{f_args})"
   end
 
+  def multiline_call(module, function, args) when is_integer(args) do
+    call(module, function, args)
+  end
+
+  def multiline_call(module, function, args) do
+    f_module = module(module)
+    f_function = "#{IO.ANSI.green()}#{function}#{IO.ANSI.reset()}"
+
+    formatted_args = Enum.map(args, &term/1)
+
+    if Enum.any?(formatted_args, fn arg -> String.contains?(arg, "\n") end) do
+      f_args =
+        formatted_args
+        |> Enum.join(",\n")
+        |> indented_block(2)
+
+      "#{f_module}.#{f_function}(\n#{f_args}\n)"
+    else
+      f_args = Enum.join(formatted_args, ", ")
+      "#{f_module}.#{f_function}(#{f_args})"
+    end
+  end
+
+  def indented_block(block, padding_width, opts \\ [])
+
+  def indented_block(text, padding_width, opts) when is_integer(padding_width) do
+    padding = String.duplicate(" ", padding_width)
+    indented_block(text, padding, opts)
+  end
+
+  def indented_block(text, padding, opts) do
+    res =
+      text
+      |> String.trim_leading()
+      |> then(fn value ->
+        if Keyword.get(opts, :replace_indentation, false) do
+          Regex.replace(~r/^\s*/m, value, padding)
+        else
+          Regex.replace(~r/^(\s*)/m, value, padding <> "\\1")
+        end
+      end)
+
+    if Keyword.get(opts, :dedent_first_line, false) do
+      String.replace_leading(res, padding, "")
+    else
+      res
+    end
+  end
+
   def term(term) do
     inspect(
       term,
@@ -38,13 +87,13 @@ defmodule Twine.Internal.Stringify do
   end
 
   def decorated_block(
-         color,
-         prefix,
-         formatted_value,
-         pre_decoration_width,
-         decoration_char,
-         opts \\ []
-       ) do
+        color,
+        prefix,
+        formatted_value,
+        pre_decoration_width,
+        decoration_char,
+        opts \\ []
+      ) do
     pre_decoration_padding = String.duplicate(" ", pre_decoration_width)
     decoration = " #{decoration_char} "
 
@@ -61,15 +110,12 @@ defmodule Twine.Internal.Stringify do
         String.duplicate(" ", String.length(prefix) + 2)
 
     formatted_value =
-      formatted_value
-      |> String.trim_leading()
-      |> then(fn value ->
-        if Keyword.get(opts, :replace_indentation, false) do
-          Regex.replace(~r/\n\s*/, value, "\n" <> continuation_padding)
-        else
-          Regex.replace(~r/\n(\s*)/, value, "\n" <> continuation_padding <> "\\1")
-        end
-      end)
+      indented_block(
+        formatted_value,
+        continuation_padding,
+        replace_indentation: Keyword.get(opts, :replace_indentation, false),
+        dedent_first_line: true
+      )
 
     "#{pre_decoration_padding}#{decoration}#{color}#{prefix}#{IO.ANSI.reset()}: #{formatted_value}"
   end
