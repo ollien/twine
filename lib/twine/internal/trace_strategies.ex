@@ -66,11 +66,15 @@ defmodule Twine.Internal.TraceStrategies do
   def tracked_print(opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
     return_mapper = Keyword.get(opts, :return_mapper)
+    debug_logging = Keyword.get(opts, :debug_logging, false)
 
     {:ok, tracker} =
-      CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, &print_tracked_message/3, arg_mapper, return_mapper)
-      end)
+      CallTracker.start_link(
+        fn result ->
+          handle_calltracker_result(result, &print_tracked_message/3, arg_mapper, return_mapper)
+        end,
+        debug_logging: debug_logging
+      )
 
     format_fn = fn
       event ->
@@ -93,6 +97,7 @@ defmodule Twine.Internal.TraceStrategies do
   def tracked_recv(recv_pid, opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
     return_mapper = Keyword.get(opts, :return_mapper)
+    debug_logging = Keyword.get(opts, :debug_logging, false)
 
     recv = fn call_pid, mfa, events ->
       recv(recv_pid, call_pid, mfa, events)
@@ -102,9 +107,12 @@ defmodule Twine.Internal.TraceStrategies do
     end
 
     {:ok, tracker} =
-      CallTracker.start_link(fn result ->
-        handle_calltracker_result(result, recv, arg_mapper, return_mapper)
-      end)
+      CallTracker.start_link(
+        fn result ->
+          handle_calltracker_result(result, recv, arg_mapper, return_mapper)
+        end,
+        debug_logging: debug_logging
+      )
 
     format_fn = fn
       event ->

@@ -10,7 +10,8 @@ defmodule Twine.Internal.CallTracker do
     defstruct [
       :result_callback,
       tracked_pids: %{},
-      tracer_monitor_ref: nil
+      tracer_monitor_ref: nil,
+      debug_enabled: false
     ]
   end
 
@@ -40,8 +41,8 @@ defmodule Twine.Internal.CallTracker do
     end
   end
 
-  def start_link(result_callback) when is_function(result_callback, 1) do
-    GenServer.start_link(__MODULE__, result_callback)
+  def start_link(result_callback, opts \\ []) when is_function(result_callback, 1) do
+    GenServer.start_link(__MODULE__, {result_callback, opts})
   end
 
   @doc """
@@ -74,8 +75,9 @@ defmodule Twine.Internal.CallTracker do
   end
 
   @impl GenServer
-  def init(result_callback) do
-    {:ok, %State{result_callback: result_callback}}
+  def init({result_callback, opts}) do
+    debug_enabled = Keyword.get(opts, :debug_logging, false)
+    {:ok, %State{result_callback: result_callback, debug_enabled: debug_enabled}}
   end
 
   @impl GenServer
@@ -87,10 +89,18 @@ defmodule Twine.Internal.CallTracker do
   end
 
   @impl GenServer
-  def handle_info(
-        {:event, {:trace, pid, :call, {_module, _function, _args} = mfa}},
-        %State{} = state
-      ) do
+  def handle_info(msg, %State{} = state) do
+    if state.debug_enabled do
+      IO.puts("[TWINE DEBUG] #{inspect(msg)}")
+    end
+
+    do_handle_info(msg, state)
+  end
+
+  defp do_handle_info(
+         {:event, {:trace, pid, :call, {_module, _function, _args} = mfa}},
+         %State{} = state
+       ) do
     old_entry = Map.get(state.tracked_pids, pid)
     monitor_ref = Process.monitor(pid)
 
@@ -110,11 +120,10 @@ defmodule Twine.Internal.CallTracker do
     end
   end
 
-  @impl GenServer
-  def handle_info(
-        {:event, {:trace, pid, :return_from, {_module, _function, _arg_count} = mfa, return}},
-        %State{} = state
-      ) do
+  defp do_handle_info(
+         {:event, {:trace, pid, :return_from, {_module, _function, _arg_count} = mfa, return}},
+         %State{} = state
+       ) do
     {reply, state} =
       log_event(state, pid, normalize_mfa(mfa), :return_from, return)
 
@@ -123,11 +132,10 @@ defmodule Twine.Internal.CallTracker do
     {:noreply, state}
   end
 
-  @impl GenServer
-  def handle_info(
-        {:event, {:trace, pid, :exception_from, {_module, _function, _arg_count} = mfa, error}},
-        %State{} = state
-      ) do
+  defp do_handle_info(
+         {:event, {:trace, pid, :exception_from, {_module, _function, _arg_count} = mfa, error}},
+         %State{} = state
+       ) do
     {reply, state} =
       log_event(state, pid, normalize_mfa(mfa), :exception_from, error)
 
@@ -136,11 +144,10 @@ defmodule Twine.Internal.CallTracker do
     {:noreply, state}
   end
 
-  @impl GenServer
-  def handle_info(
-        {:event, {:trace, pid, :return_to, {_module, _function, _arg_count} = mfa}},
-        %State{} = state
-      ) do
+  defp do_handle_info(
+         {:event, {:trace, pid, :return_to, {_module, _function, _arg_count} = mfa}},
+         %State{} = state
+       ) do
     down_msg = fetch_from_mailbox({:DOWN, _ref, :process, ^pid, _reason})
     # If we get a return_to, there are some DOWN Messages which are better suited,
     # such as stacktraces
@@ -154,33 +161,29 @@ defmodule Twine.Internal.CallTracker do
     end
   end
 
-  @impl GenServer
-  def handle_info(
-        {:DOWN, ref, :process, _pid, _reason},
-        %State{tracer_monitor_ref: ref} = state
-      ) do
+  defp do_handle_info(
+         {:DOWN, ref, :process, _pid, _reason},
+         %State{tracer_monitor_ref: ref} = state
+       ) do
     {:stop, :normal, state}
   end
 
-  @impl GenServer
-  def handle_info({:DOWN, _ref, :process, pid, {:shutdown, _reason}}, %State{} = state)
-      when is_pid(pid) do
+  defp do_handle_info({:DOWN, _ref, :process, pid, {:shutdown, _reason}}, %State{} = state)
+       when is_pid(pid) do
     # Ignore "normal" shutdown reasons, since if we get this, chances are we're racing against a return_to
     # It does technically mean that our state has a reference to a monitor that has already resolved,
     # but that's fine, since it's not like we're going to get more than one DOWN for it.
     {:noreply, state}
   end
 
-  @impl GenServer
-  def handle_info({:DOWN, _ref, :process, pid, reason}, %State{} = state)
-      when is_pid(pid) and reason in [:normal, :shutdown] do
+  defp do_handle_info({:DOWN, _ref, :process, pid, reason}, %State{} = state)
+       when is_pid(pid) and reason in [:normal, :shutdown] do
     # Same as above
     {:noreply, state}
   end
 
-  @impl GenServer
-  def handle_info({:DOWN, _ref, :process, pid, _reason} = down_msg, %State{} = state)
-      when is_pid(pid) do
+  defp do_handle_info({:DOWN, _ref, :process, pid, _reason} = down_msg, %State{} = state)
+       when is_pid(pid) do
     return_to_msg =
       fetch_from_mailbox({:event, {:trace, ^pid, :return_to, {_module, _function, _arg_count}}})
 
@@ -192,7 +195,7 @@ defmodule Twine.Internal.CallTracker do
     end
   end
 
-  def handle_info(_other, %State{} = state) do
+  defp do_handle_info(_other, %State{} = state) do
     {:noreply, state}
   end
 

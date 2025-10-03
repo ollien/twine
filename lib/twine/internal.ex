@@ -178,10 +178,17 @@ defmodule Twine.Internal do
   defp do_trace_calls(spec, num_args, rate, select_strategy, opts) do
     {arg_mapper, opts} = Keyword.pop(opts, :arg_mapper, nil)
     {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
+    # NOTE: this is for debugging and has no guarantee of stability
+    {debug_logging, opts} = Keyword.pop(opts, :internal_debug_logging, false)
 
     with :ok <- validate_arg_mapper(arg_mapper, num_args),
          :ok <- validate_return_mapper(return_mapper) do
-      strategy = select_strategy.(arg_mapper: arg_mapper, return_mapper: return_mapper)
+      strategy =
+        select_strategy.(
+          arg_mapper: arg_mapper,
+          return_mapper: return_mapper,
+          debug_logging: debug_logging
+        )
 
       recon_opts =
         opts
