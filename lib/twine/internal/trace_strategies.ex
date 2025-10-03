@@ -74,6 +74,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     format_fn = fn
       event ->
+        CallTracker.monitor_tracer(tracker, self())
         CallTracker.handle_event(tracker, event)
 
         # recon_trace ignores "" values
@@ -107,6 +108,7 @@ defmodule Twine.Internal.TraceStrategies do
 
     format_fn = fn
       event ->
+        CallTracker.monitor_tracer(tracker, self())
         CallTracker.handle_event(tracker, event)
 
         # recon_trace ignores "" values
