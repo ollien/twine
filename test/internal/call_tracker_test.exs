@@ -249,7 +249,7 @@ defmodule Twine.Internal.CallTrackerTest do
   end
 
   test "process stops when tracer process stops" do
-    {:ok, tracker} = CallTracker.start_link(&flunk/1)
+    {:ok, tracker} = CallTracker.start_link(&flunk/1, tracer_down_timeout: 0)
     Process.unlink(tracker)
     monitor_ref = Process.monitor(tracker)
 

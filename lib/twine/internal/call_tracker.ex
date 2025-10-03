@@ -3,12 +3,15 @@ defmodule Twine.Internal.CallTracker do
   # This module tracks calls for the Internal module. There is absolutely no
   # guarantee around its stability
 
+  @default_tracer_down_timeout 10_000
+
   defmodule State do
     @moduledoc false
 
-    @enforce_keys [:result_callback]
+    @enforce_keys [:result_callback, :tracer_down_timeout]
     defstruct [
       :result_callback,
+      :tracer_down_timeout,
       tracked_pids: %{},
       tracer_monitor_ref: nil,
       debug_enabled: false
@@ -77,7 +80,14 @@ defmodule Twine.Internal.CallTracker do
   @impl GenServer
   def init({result_callback, opts}) do
     debug_enabled = Keyword.get(opts, :debug_logging, false)
-    {:ok, %State{result_callback: result_callback, debug_enabled: debug_enabled}}
+    tracer_down_timeout = Keyword.get(opts, :tracer_down_timeout, @default_tracer_down_timeout)
+
+    {:ok,
+     %State{
+       result_callback: result_callback,
+       debug_enabled: debug_enabled,
+       tracer_down_timeout: tracer_down_timeout
+     }}
   end
 
   @impl GenServer
@@ -165,6 +175,13 @@ defmodule Twine.Internal.CallTracker do
          {:DOWN, ref, :process, _pid, _reason},
          %State{tracer_monitor_ref: ref} = state
        ) do
+    # Give the tracer some amount of time to send remaining messages before we die
+    Process.send_after(self(), :stop, state.tracer_down_timeout)
+
+    {:noreply, state}
+  end
+
+  defp do_handle_info(:stop, state) do
     {:stop, :normal, state}
   end
 
