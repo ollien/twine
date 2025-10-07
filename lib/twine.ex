@@ -87,7 +87,7 @@ defmodule Twine do
   This function must have an arity of 1, and return the value directly. If this
   is supplied with `ignore_outcome: true`, it will not be called.
   - `ignore_outcome`: If true, calls are printed immediately, without waiting
-  for their return value or a process termination. Defaults to false.
+  for their return value or a process termination. Defaults to true.
   """
   defmacro print_calls(call, rate, opts \\ []) do
     Internal.run(call, fn matchspec_ast, num_args ->

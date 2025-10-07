@@ -64,12 +64,13 @@ If you choose to combine a rate with `recv_calls`, **you should be careful not
 to let these pile up in the process mailbox, or you can consume unbounded
 amounts of memory.**
 
-By default, Twine will print the different outcomes of the functions it traces,
-including return values, thrown/caught exceptions, and process
-crashes/termination. In order to do this, Twine must wait for the function to
-produce an outcome. If you would rather not wait for an outcome to occur, or
-are only interested in the call itself, you can pass `ignore_outcome: true` to
-`print_calls`/`recv_calls`.
+By default, Twine will print that the call itself occurred, and not information
+about its outcome (return values, thrown/caught exceptions, and process
+crashes/termination). If you would like to display these outcomes
+`ignore_outcome: false` to `print_calls`/`recv_calls`. In order to do this,
+Twine must wait for the function to produce an outcome, so be aware that your
+calls may not show instantaneously. Twine will also incur a memory penalty, as
+it must keep a copy of your function arguments.
 
 
 ### Tracing All Calls To A Function
@@ -216,7 +217,8 @@ iex> Twine.print_calls(
   arg_mapper: fn msg, from, _state ->
     # :ignored is not special here, it is just a placeholder.
     {msg, from, :ignored}
-  end
+  end,
+  ignore_outcome: false
 )
 iex>
 1 function(s) matched, waiting for calls...
@@ -246,7 +248,8 @@ iex> Twine.print_calls(
       {:noreply, :ignored}
     {:reply, reply, _state} ->
       {:reply, reply, :ignored}
-  end
+  end,
+  ignore_outcome: false
 )
 1 function(s) matched, waiting for calls...
 :ok
@@ -286,7 +289,8 @@ iex> Twine.print_calls(
       state.subscribers
     {:reply, reply, state} ->
       state.subscribers
-  end
+  end,
+  ignore_outcome: false
 )
 1 function(s) matched, waiting for calls...
 :ok
@@ -311,7 +315,7 @@ iex>
 ### Function Outcomes
 
 As mentioned, Twine will print the different outcomes of the functions it
-traces. This behavior can be opted out of with `ignore_outcome: true` to
+traces. This behavior can be opted into with `ignore_outcome: false` to
 `print_calls`/`recv_calls`, if your function is particularly long-running, or
 you are just simply not interested in the extra output.
 
@@ -371,7 +375,7 @@ First, make sure you're matching the correct process and/or function.
 Assuming you've gotten both of these right, it is possible that `recon_trace`
 did in fact match your call correctly, but it is taking time to generate the
 output. Depending on the size of your call, this may take a couple of minutes.
-You can use `arg_mapper`, `return_mapper`, and `ignore_outcome` to reduce
+You can use `arg_mapper`, `return_mapper`, and `ignore_outcome: true` to reduce
 output size.
 
 ### Why can't I use the pin operator or shell variables in guards?

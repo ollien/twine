@@ -25,7 +25,7 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, false)
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
 
     if ignore_outcome do
       do_trace_calls(spec, num_args, rate, &TraceStrategies.simple_print/1, opts)
@@ -38,7 +38,7 @@ defmodule Twine.Internal do
     warn_about_memory_usage(rate)
 
     me = self()
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, false)
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
 
     if ignore_outcome do
       do_trace_calls(
