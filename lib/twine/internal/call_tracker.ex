@@ -226,7 +226,7 @@ defmodule Twine.Internal.CallTracker do
 
         case result do
           {:ok, %Result{status: {:ready, _data}}} ->
-            state = %State{state | tracked_pids: Map.delete(state.tracked_pids, pid)}
+            state = %{(%State{} = state) | tracked_pids: Map.delete(state.tracked_pids, pid)}
             state.result_callback.(result)
             {:noreply, state}
 
