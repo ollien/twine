@@ -79,7 +79,6 @@ defmodule Twine.Internal.CallTrackerTest do
                    250
   end
 
-  @tag :only
   test "returns event details after call, exception_from, and DOWN" do
     {:ok, tracker} = CallTracker.start_link(send_to(self()))
 
@@ -241,6 +240,32 @@ defmodule Twine.Internal.CallTrackerTest do
     send(pid, :die)
 
     assert_receive {:DOWN, ^monitor_ref, :process, ^tracker, _reason}
+  end
+
+  test "demonitors the original tracker if it's told to track twice" do
+    {:ok, tracker} = CallTracker.start_link(send_to(self()), tracer_down_timeout: 10_000)
+
+    pid1 =
+      spawn(fn ->
+        receive do
+          _anything -> :erlang.exit(:normal)
+        end
+      end)
+
+    pid2 =
+      spawn(fn ->
+        receive do
+          _anything -> :erlang.exit(:normal)
+        end
+      end)
+
+    CallTracker.monitor_tracer(tracker, pid1)
+    CallTracker.monitor_tracer(tracker, pid2)
+    # an incorrect implementation would be notified of this kill
+    Process.exit(pid1, :kill)
+
+    # Ensure we do not get a DOWN for the pid we just killed, it's not important to us anymore
+    refute_receive {:error, {:missing, ^pid1, :unknown, {:DOWN, :killed}}}, 250
   end
 
   test "tracks returns in tail calls" do

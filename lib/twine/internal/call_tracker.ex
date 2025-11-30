@@ -88,6 +88,11 @@ defmodule Twine.Internal.CallTracker do
 
   @impl GenServer
   def handle_call({:monitor_tracer, tracer_pid}, _from, %State{} = state) do
+    if state.tracer_monitor_ref do
+      # Remove the old ref
+      Process.demonitor(state.tracer_monitor_ref)
+    end
+
     monitor_ref = Process.monitor(tracer_pid)
     state = %State{state | tracer_monitor_ref: monitor_ref}
 
@@ -141,7 +146,6 @@ defmodule Twine.Internal.CallTracker do
     # exception_from), to give more meaningful outputs.
     Process.send_after(self(), {:DEFERRED_DOWN, ref, :process, pid, reason}, @down_deferral_time)
     {:noreply, state}
-    # end
   end
 
   defp do_handle_info({:DEFERRED_DOWN, _ref, :process, pid, reason}, %State{} = state)
