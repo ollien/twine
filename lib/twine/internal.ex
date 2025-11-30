@@ -66,7 +66,10 @@ defmodule Twine.Internal do
     end
   end
 
-  def do_print_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
+  def do_print_calls({_module, _function, _match_func} = spec, num_args, rate, opts)
+      when is_integer(num_args) and
+             (is_integer(rate) or is_integer_pair(rate)) and
+             is_list(opts) do
     trace_calls(
       spec,
       num_args,
@@ -76,7 +79,10 @@ defmodule Twine.Internal do
     )
   end
 
-  def do_recv_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
+  def do_recv_calls({_module, _function, _match_func} = spec, num_args, rate, opts)
+      when is_integer(num_args) and
+             (is_integer(rate) or is_integer_pair(rate)) and
+             is_list(opts) do
     warn_about_memory_usage(rate)
     me = self()
 
@@ -183,7 +189,7 @@ defmodule Twine.Internal do
   end
 
   defp trace_calls(
-         spec,
+         {_module, _function, _match_fun} = spec,
          num_args,
          rate,
          %TraceStrategies.StrategyChoice{} = strategy_choice,
