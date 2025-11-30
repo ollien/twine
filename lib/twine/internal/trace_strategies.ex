@@ -322,7 +322,7 @@ defmodule Twine.Internal.TraceStrategies do
     f_call = Stringify.call(module, function, args)
 
     IO.puts(
-      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - #{f_call} #{IO.ANSI.light_black()}(#{inspect(message)}#{IO.ANSI.reset()}"
+      "#{IO.ANSI.red()}Twine received an unexpected event for #{f_pid}#{IO.ANSI.red()} - #{f_call} #{IO.ANSI.light_black()}(#{inspect(message)}#{IO.ANSI.reset()})"
     )
   end
 
