@@ -298,7 +298,7 @@ defmodule Twine.Internal.TraceStrategies do
   end
 
   defp print_event_error({kind, pid, {module, function, args}, message})
-       when kind in [:wrong_mfa, :missing] do
+       when kind in [:wrong_mfa, :missing, :no_callstack] do
     f_pid = Stringify.pid(pid)
     f_call = Stringify.call(module, function, args)
 
@@ -308,7 +308,7 @@ defmodule Twine.Internal.TraceStrategies do
   end
 
   defp print_event_error({kind, pid, :unknown, message})
-       when kind in [:wrong_mfa, :missing] do
+       when kind in [:wrong_mfa, :missing, :no_callstack] do
     f_pid = Stringify.pid(pid)
 
     IO.puts(

@@ -79,6 +79,7 @@ defmodule Twine.Internal.CallTrackerTest do
                    250
   end
 
+  @tag :only
   test "returns event details after call, exception_from, and DOWN" do
     {:ok, tracker} = CallTracker.start_link(send_to(self()))
 
@@ -153,30 +154,6 @@ defmodule Twine.Internal.CallTrackerTest do
                :exception_from => :badarg
              }
            } = ready_payload
-  end
-
-  test "returns warning when overwriting an existing call" do
-    {:ok, tracker} = CallTracker.start_link(send_to(self()))
-    pid = :erlang.list_to_pid(~c"<0.1.0>")
-
-    CallTracker.handle_event(
-      tracker,
-      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
-    )
-
-    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
-
-    CallTracker.handle_event(
-      tracker,
-      {:trace, pid, :call, {MyModule, :my_function, [:wibble, :wobble]}}
-    )
-
-    assert_receive {:ok,
-                    %CallTracker.Result{
-                      status: :not_ready,
-                      warnings: [{:overwrote_call, ^pid, {MyModule, :my_function, [:foo, :bar]}}]
-                    }},
-                   250
   end
 
   test "does not warn when getting two calls on different pids" do
@@ -264,5 +241,101 @@ defmodule Twine.Internal.CallTrackerTest do
     send(pid, :die)
 
     assert_receive {:DOWN, ^monitor_ref, :process, ^tracker, _reason}
+  end
+
+  test "tracks returns in tail calls" do
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
+    pid = :erlang.list_to_pid(~c"<0.1.0>")
+
+    # Simulate a tail call by calling handle_event in succession
+    call_args = [
+      [:foo, :bar],
+      [:baz, :whizbang],
+      [:wibble, :wobble]
+    ]
+
+    Enum.each(call_args, fn args ->
+      CallTracker.handle_event(
+        tracker,
+        {:trace, pid, :call, {MyModule, :my_function, args}}
+      )
+
+      assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+    end)
+
+    # Return from each of the tail calls
+    Enum.each(call_args, fn _arg ->
+      CallTracker.handle_event(
+        tracker,
+        {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
+      )
+    end)
+
+    # Return to the callee's parent
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
+    )
+
+    # We should get events for all three calls
+
+    expected_ready_payload =
+      {
+        pid,
+        {MyModule, :my_function, [:foo, :bar]},
+        %{:return_from => :ok, :return_to => {MyModule, :my_parent_function, 0}}
+      }
+
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
+
+    expected_ready_payload =
+      {
+        pid,
+        {MyModule, :my_function, [:baz, :whizbang]},
+        %{:return_from => :ok, :return_to => {MyModule, :my_parent_function, 0}}
+      }
+
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
+
+    expected_ready_payload =
+      {
+        pid,
+        {MyModule, :my_function, [:wibble, :wobble]},
+        %{:return_from => :ok, :return_to => {MyModule, :my_parent_function, 0}}
+      }
+
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
+  end
+
+  test "returns error when getting return_from on a call that has yet to get a return_to" do
+    {:ok, tracker} = CallTracker.start_link(send_to(self()))
+    pid = :erlang.list_to_pid(~c"<0.1.0>")
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [:foo, :bar]}}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
+    )
+
+    assert_receive {:error, {:no_callstack, ^pid, :unknown, {:return_from, :ok}}}, 250
   end
 end

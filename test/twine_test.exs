@@ -63,6 +63,39 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
+      test "prints recursive invocations" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(0) do
+                nil
+              end
+
+              def func(n) when n > 0 do
+                func(n - 1)
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_n), 4, unquote(base_opts))
+            Blah.func(3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(3)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(2)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(0)"
+
+        # Incorrect CallTracker implementations will print this for recursive functions
+        refute TestHelper.strip_ansi(output) =~
+                 "Twine received call event before previous call completed"
+
+        refute TestHelper.has_exception?(output)
+      end
+
       test "allows matching patterns in the trace" do
         output =
           TestHelper.iex_run do
@@ -666,9 +699,8 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
 
             Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, ignore_outcome: false)
 
-            spawn(fn ->
-              Blah.doit()
-            end)
+            # We specifically don't use an anonymous fn here so we don't get a return event for going back to iex
+            spawn(&Blah.doit/0)
 
             Code.eval_quoted(unquote(generate_output))
           end

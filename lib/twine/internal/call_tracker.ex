@@ -4,6 +4,7 @@ defmodule Twine.Internal.CallTracker do
   # guarantee around its stability
 
   @default_tracer_down_timeout 10_000
+  @down_deferral_time 100
 
   defmodule State do
     @moduledoc false
@@ -18,11 +19,16 @@ defmodule Twine.Internal.CallTracker do
     ]
   end
 
-  defmodule Entry do
+  defmodule TrackedPID do
     @moduledoc false
 
-    @enforce_keys [:mfa, :monitor_ref]
-    defstruct [:mfa, :monitor_ref, events: %{}]
+    @enforce_keys [:monitor_ref]
+    defstruct [:monitor_ref, call_stack: [], pending_return_stack: []]
+  end
+
+  defmodule TrackedCall do
+    @enforce_keys [:mfa]
+    defstruct [:mfa, events: %{}]
   end
 
   defmodule Result do
@@ -33,16 +39,6 @@ defmodule Twine.Internal.CallTracker do
   end
 
   use GenServer
-
-  defmacrop fetch_from_mailbox(pattern, timeout \\ 100) do
-    quote do
-      receive do
-        unquote(pattern) = value -> value
-      after
-        unquote(timeout) -> nil
-      end
-    end
-  end
 
   def start_link(result_callback, opts \\ []) when is_function(result_callback, 1) do
     GenServer.start_link(__MODULE__, {result_callback, opts})
@@ -107,68 +103,8 @@ defmodule Twine.Internal.CallTracker do
     do_handle_info(msg, state)
   end
 
-  defp do_handle_info(
-         {:event, {:trace, pid, :call, {_module, _function, _args} = mfa}},
-         %State{} = state
-       ) do
-    old_entry = Map.get(state.tracked_pids, pid)
-    monitor_ref = Process.monitor(pid)
-
-    state =
-      put_in(state.tracked_pids[pid], %Entry{mfa: mfa, monitor_ref: monitor_ref, events: %{}})
-
-    case old_entry do
-      nil ->
-        state.result_callback.({:ok, %Result{status: :not_ready}})
-        {:noreply, state}
-
-      %Entry{} ->
-        warning = {:overwrote_call, pid, old_entry.mfa}
-        state.result_callback.({:ok, %Result{status: :not_ready, warnings: [warning]}})
-
-        {:noreply, state}
-    end
-  end
-
-  defp do_handle_info(
-         {:event, {:trace, pid, :return_from, {_module, _function, _arg_count} = mfa, return}},
-         %State{} = state
-       ) do
-    {reply, state} =
-      log_event(state, pid, normalize_mfa(mfa), :return_from, return)
-
-    state.result_callback.(reply)
-
-    {:noreply, state}
-  end
-
-  defp do_handle_info(
-         {:event, {:trace, pid, :exception_from, {_module, _function, _arg_count} = mfa, error}},
-         %State{} = state
-       ) do
-    {reply, state} =
-      log_event(state, pid, normalize_mfa(mfa), :exception_from, error)
-
-    state.result_callback.(reply)
-
-    {:noreply, state}
-  end
-
-  defp do_handle_info(
-         {:event, {:trace, pid, :return_to, {_module, _function, _arg_count} = mfa}},
-         %State{} = state
-       ) do
-    down_msg = fetch_from_mailbox({:DOWN, _ref, :process, ^pid, _reason})
-    # If we get a return_to, there are some DOWN Messages which are better suited,
-    # such as stacktraces
-    if down_msg != nil and prioritize_down?(down_msg) do
-      handle_down(down_msg, state)
-    else
-      {reply, state} = log_event(state, pid, :return_to, mfa)
-
-      state.result_callback.(reply)
-      {:noreply, state}
-    end
+  defp do_handle_info({:event, event_data}, %State{} = state) do
+    handle_trace_event(event_data, state)
   end
 
   defp do_handle_info(
@@ -179,10 +115,6 @@ defmodule Twine.Internal.CallTracker do
     Process.send_after(self(), :stop, state.tracer_down_timeout)
 
     {:noreply, state}
-  end
-
-  defp do_handle_info(:stop, state) do
-    {:stop, :normal, state}
   end
 
   defp do_handle_info({:DOWN, _ref, :process, pid, {:shutdown, _reason}}, %State{} = state)
@@ -199,113 +131,242 @@ defmodule Twine.Internal.CallTracker do
     {:noreply, state}
   end
 
-  defp do_handle_info({:DOWN, _ref, :process, pid, _reason} = down_msg, %State{} = state)
+  defp do_handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state)
        when is_pid(pid) do
-    return_to_msg =
-      fetch_from_mailbox({:event, {:trace, ^pid, :return_to, {_module, _function, _arg_count}}})
+    # We defer any DOWN handling here because unlike the trace events, the order of getting a DOWN
+    # is not guaranteed in any way.
+    #
+    # The idea here is that by sending ourselves a DOWN in @down_deferral_time,
+    # we will give the tracer an opportunity to emit other events (likely an
+    # exception_from), to give more meaningful outputs.
+    Process.send_after(self(), {:DEFERRED_DOWN, ref, :process, pid, reason}, @down_deferral_time)
+    {:noreply, state}
+    # end
+  end
 
-    # If we get a DOWN, there are some return_to we are better off handling, such as if we have a noproc.
-    if return_to_msg != nil and not prioritize_down?(down_msg) do
-      handle_info(return_to_msg, state)
-    else
-      handle_down(down_msg, state)
-    end
+  defp do_handle_info({:DEFERRED_DOWN, _ref, :process, pid, reason}, %State{} = state)
+       when is_pid(pid) do
+    handle_down(pid, reason, state)
+  end
+
+  defp do_handle_info(:stop, state) do
+    {:stop, :normal, state}
   end
 
   defp do_handle_info(_other, %State{} = state) do
     {:noreply, state}
   end
 
-  defp handle_down({:DOWN, ref, :process, pid, reason}, %State{} = state) do
-    case state.tracked_pids[pid] do
-      nil ->
+  defp handle_trace_event(
+         {:trace, pid, :call, {_module, _function, _args} = mfa},
+         %State{} = state
+       ) do
+    {:ok, %State{} = state} = track_call(pid, mfa, state)
+    state.result_callback.({:ok, %Result{status: :not_ready, warnings: []}})
+
+    {:noreply, state}
+  end
+
+  defp handle_trace_event(
+         {:trace, pid, :return_from, {_module, _function, _arg_count} = mfa, return},
+         %State{} = state
+       ) do
+    case track_return_from(pid, mfa, return, state) do
+      {:ok, state} ->
+        state.result_callback.({:ok, %Result{status: :not_ready, warnings: []}})
         {:noreply, state}
 
-      %Entry{monitor_ref: ^ref} ->
-        {result, state} = log_event(state, pid, :DOWN, reason)
-
-        case result do
-          {:ok, %Result{status: {:ready, _data}}} ->
-            state = %{(%State{} = state) | tracked_pids: Map.delete(state.tracked_pids, pid)}
-            state.result_callback.(result)
-            {:noreply, state}
-
-          _other ->
-            {:noreply, state}
-        end
+      {:error, {kind, mfa}, state} ->
+        state.result_callback.({:error, {kind, pid, mfa, {:return_from, return}}})
+        {:noreply, state}
     end
   end
 
-  defp log_event(%State{} = state, pid, kind, value) do
-    log_event(state, pid, :unknown, kind, value)
+  defp handle_trace_event(
+         {:trace, pid, :exception_from, {_module, _function, _arg_count} = mfa, error},
+         %State{} = state
+       ) do
+    case track_exception_from(pid, mfa, error, state) do
+      {:ok, state} ->
+        state.result_callback.({:ok, %Result{status: :not_ready, warnings: []}})
+        {:noreply, state}
+
+      {:error, {kind, mfa}, state} ->
+        state.result_callback.({:error, {kind, pid, mfa, {:exception_from, error}}})
+        {:noreply, state}
+    end
   end
 
-  defp log_event(%State{} = state, pid, normalized_mfa, kind, value) do
-    with {:ok, entry} <- fetch_call(state, pid, normalized_mfa) do
-      entry = put_in(entry.events[kind], value)
-      result = result_after_log(pid, entry)
+  defp handle_trace_event(
+         {:trace, pid, :return_to, {_module, _function, _arg_count} = mfa},
+         %State{} = state
+       ) do
+    case track_return_to(pid, mfa, state) do
+      {:ok, return_stack, %State{} = state} ->
+        Enum.each(return_stack, fn %TrackedCall{} = tracked_call ->
+          state.result_callback.(
+            {:ok, %Result{status: {:ready, {pid, tracked_call.mfa, tracked_call.events}}}}
+          )
+        end)
 
-      state =
-        case result do
-          {:ok, %Result{status: {:ready, _info}}} ->
-            {entry, tracked_pids} = Map.pop(state.tracked_pids, pid)
-            # This can't be nil since we just fetched the pid from state earlier
-            Process.demonitor(entry.monitor_ref)
+        {:noreply, state}
 
-            %State{state | tracked_pids: tracked_pids}
+      {:error, {kind, mfa, state}} ->
+        state.result_callback.({:error, {kind, pid, mfa, {:return_to, mfa}}})
+        {:noreply, state}
+    end
+  end
 
-          _other ->
-            put_in(state.tracked_pids[pid], entry)
-        end
+  defp handle_down(pid, reason, %State{} = state) when is_pid(pid) do
+    case track_down(pid, reason, state) do
+      {:ok, %TrackedCall{} = tracked_call, state} ->
+        state.result_callback.(
+          {:ok, %Result{status: {:ready, {pid, tracked_call.mfa, tracked_call.events}}}}
+        )
 
-      {result, state}
+        {:noreply, state}
+
+      {:error, {kind, mfa}, state} ->
+        state.result_callback.({:error, {kind, pid, mfa, {:DOWN, reason}}})
+    end
+
+    {:noreply, state}
+  end
+
+  defp track_call(pid, {_module, _function, _args} = mfa, %State{} = state) do
+    {%TrackedPID{} = tracked_pid, %State{} = state} = ensure_pid_tracked(pid, state)
+    tracked_call = %TrackedCall{mfa: mfa}
+    state = put_in(state.tracked_pids[pid].call_stack, [tracked_call | tracked_pid.call_stack])
+
+    {:ok, state}
+  end
+
+  defp track_return_from(pid, {_module, _function, _args} = mfa, return_value, %State{} = state)
+       when is_pid(pid) do
+    track_call_exit(pid, mfa, :return_from, return_value, state)
+  end
+
+  defp track_exception_from(pid, {_module, _function, _args} = mfa, exception, %State{} = state)
+       when is_pid(pid) do
+    track_call_exit(pid, mfa, :exception_from, exception, state)
+  end
+
+  defp track_return_to(pid, {_module, _function, _args} = mfa, %State{} = state)
+       when is_pid(pid) do
+    with {:ok, %TrackedPID{} = tracked_pid} <- fetch_tracked_pid(pid, mfa, state) do
+      return_stack =
+        Enum.map(tracked_pid.pending_return_stack, fn %TrackedCall{} = call ->
+          put_in(call.events[:return_to], mfa)
+        end)
+
+      # Clean up the pid if there's no unresolved calls
+      if Enum.empty?(tracked_pid.call_stack) do
+        state = untrack_pid(pid, state)
+        {:ok, return_stack, state}
+      else
+        state = put_in(state.tracked_pids[pid].pending_return_stack, [])
+        {:ok, return_stack, state}
+      end
+    end
+  end
+
+  defp track_call_exit(
+         pid,
+         {_module, _function, _args} = mfa,
+         event_kind,
+         result,
+         %State{} = state
+       )
+       when is_pid(pid) and event_kind in [:return_from, :exception_from] do
+    with {:ok, %TrackedPID{} = tracked_pid} <- fetch_tracked_pid(pid, mfa, state) do
+      case pop_call_stack(tracked_pid, mfa) do
+        {:ok, tracked_call, tracked_pid} ->
+          tracked_call = put_in(tracked_call.events[event_kind], result)
+          pending_return_stack = [tracked_call | tracked_pid.pending_return_stack]
+
+          tracked_pid = put_in(tracked_pid.pending_return_stack, pending_return_stack)
+          state = put_in(state.tracked_pids[pid], tracked_pid)
+
+          {:ok, state}
+
+        {:error, reason} ->
+          {:error, reason, state}
+      end
+    end
+  end
+
+  defp track_down(pid, reason, %State{} = state) do
+    with {:ok, %TrackedPID{} = tracked_pid} <- fetch_tracked_pid(pid, :unknown, state) do
+      state = untrack_pid(pid, state)
+
+      # Prioritize the most recent call in the pending return stack, as we may have gotten an exception from there.
+      # If there's nothing there, pull off the top of the callstack (which must be what crashed).
+      case {tracked_pid.pending_return_stack, tracked_pid.call_stack} do
+        {[%TrackedCall{} = tracked_call | _return_stack], _call_stack} ->
+          tracked_call = put_in(tracked_call.events[:DOWN], reason)
+          {:ok, tracked_call, state}
+
+        {[], [%TrackedCall{} = tracked_call | _call_stack]} ->
+          tracked_call = put_in(tracked_call.events[:DOWN], reason)
+          {:ok, tracked_call, state}
+
+        {[], []} ->
+          {:error, {:no_callstack, :unknown}, state}
+      end
+    end
+  end
+
+  defp fetch_tracked_pid(pid, mfa, %State{} = state)
+       when is_pid(pid) and (mfa == :unknown or (is_tuple(mfa) and tuple_size(mfa) == 3)) do
+    case Map.fetch(state.tracked_pids, pid) do
+      {:ok, %TrackedPID{} = tracked_pid} ->
+        {:ok, tracked_pid}
+
+      :error ->
+        {:error, {:missing, mfa}, state}
+    end
+  end
+
+  defp pop_call_stack(
+         %TrackedPID{call_stack: []},
+         {_module, _function, _args}
+       ) do
+    {:error, {:no_callstack, :unknown}}
+  end
+
+  defp pop_call_stack(%TrackedPID{} = tracked_pid, {_module, _function, _args} = expected_mfa) do
+    [%TrackedCall{} = tracked_call | call_stack] = tracked_pid.call_stack
+
+    if normalize_mfa(tracked_call.mfa) == normalize_mfa(expected_mfa) do
+      {:ok, tracked_call, put_in(tracked_pid.call_stack, call_stack)}
     else
-      {:error, {error_kind, pid, mfa}} ->
-        error = {:error, {error_kind, pid, mfa, {kind, value}}}
-
-        {error, state}
-
-      error ->
-        {error, state}
+      {:error, {:wrong_mfa, tracked_call.mfa}}
     end
   end
 
-  defp fetch_call(%State{} = state, pid, normalized_mfa) do
-    with %Entry{} = entry <-
-           Map.get(state.tracked_pids, pid, {:error, {:missing, pid, normalized_mfa}}),
-         :ok <- validate_expected_mfa(entry, pid, normalized_mfa) do
-      {:ok, entry}
+  defp ensure_pid_tracked(pid, %State{} = state) when is_pid(pid) do
+    case Map.fetch(state.tracked_pids, pid) do
+      {:ok, tracked_pid} ->
+        {tracked_pid, state}
+
+      :error ->
+        ref = Process.monitor(pid)
+        tracked_pid = %TrackedPID{monitor_ref: ref}
+        state = put_in(state.tracked_pids[pid], tracked_pid)
+
+        {tracked_pid, state}
     end
   end
 
-  defp validate_expected_mfa(%Entry{}, _pid, :unknown) do
-    :ok
-  end
+  defp untrack_pid(pid, %State{} = state) when is_pid(pid) do
+    case Map.pop(state.tracked_pids, pid) do
+      {nil, tracked_pids} ->
+        put_in(state.tracked_pids, tracked_pids)
 
-  defp validate_expected_mfa(%Entry{} = entry, pid, normalized_mfa) do
-    case normalize_mfa(entry.mfa) do
-      ^normalized_mfa ->
-        :ok
+      {%TrackedPID{} = tracked_pid, tracked_pids} ->
+        Process.demonitor(tracked_pid.monitor_ref)
 
-      _other ->
-        {:error, {:wrong_mfa, pid, entry.mfa}}
-    end
-  end
-
-  defp result_after_log(pid, entry) do
-    # We must have return_to'd or return_from'd, otherwise we haven't gotten all the events yet.
-    case entry.events do
-      %{:return_to => _return_to, :return_from => _return_from} ->
-        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
-
-      %{:return_to => _return_to, :exception_from => _exception_from} ->
-        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
-
-      %{:DOWN => _down, :exception_from => _exception_from} ->
-        {:ok, %Result{status: {:ready, {pid, entry.mfa, entry.events}}}}
-
-      %{} ->
-        {:ok, %Result{status: :not_ready}}
+        put_in(state.tracked_pids, tracked_pids)
     end
   end
 
@@ -315,18 +376,5 @@ defmodule Twine.Internal.CallTracker do
 
   defp normalize_mfa({mod, function, args}) when is_list(args) do
     {mod, function, Enum.count(args)}
-  end
-
-  defp prioritize_down?({:DOWN, _ref, :process, _pid, {:shutdown, _reason}}) do
-    false
-  end
-
-  defp prioritize_down?({:DOWN, _ref, :process, _pid, reason})
-       when reason in [:normal, :shutdown, :noproc] do
-    false
-  end
-
-  defp prioritize_down?({:DOWN, _ref, :process, _pid, _other}) do
-    true
   end
 end
