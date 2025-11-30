@@ -64,7 +64,8 @@ defmodule Twine.Internal.MacroHelper do
           [
             {:/, _meta2, [call_ast, arity]}
           ]}
-       ) do
+       )
+       when is_integer(arity) do
     with {:ok, {module, function, []}} <- decompose_call(call_ast) do
       {:ok,
        {
@@ -72,6 +73,11 @@ defmodule Twine.Internal.MacroHelper do
          nil
        }}
     end
+  end
+
+  defp decompose_match_call({:&, _meta1, _invalid_identifier}) do
+    # This must not get parsed as a call (or Elixir will gladly accept &IO.inspect as a call).
+    {:error, "Invalid call specification"}
   end
 
   defp decompose_match_call(call_ast) do
