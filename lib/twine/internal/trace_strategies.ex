@@ -17,9 +17,34 @@ defmodule Twine.Internal.TraceStrategies do
     ]
   end
 
+  defmodule StrategyChoice do
+    @moduledoc false
+
+    @enforce_keys [:simple, :tracked]
+    defstruct [:simple, :tracked]
+  end
+
   @doc """
-  The "simple print" strategy prints the call without waiting for any results.
+  Presents a choice between two strategies, a "simple" one, which prints calls immediately, and a "tracked" one, which prints outcomes after waiting for them.
   """
+  def print() do
+    %StrategyChoice{
+      simple: &simple_print/1,
+      tracked: &tracked_print/1
+    }
+  end
+
+  @doc """
+  Presents a choice between two strategies, a "simple" one, which sends calls immediately, and a "tracked" one, which sends outcomes after waiting for them.
+  """
+  def recv(recv_pid) do
+    %StrategyChoice{
+      simple: fn opts -> simple_recv(recv_pid, opts) end,
+      tracked: fn opts -> tracked_recv(recv_pid, opts) end
+    }
+  end
+
+  # Prints the call without any outcomes
   def simple_print(opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
 
@@ -37,9 +62,7 @@ defmodule Twine.Internal.TraceStrategies do
     }
   end
 
-  @doc """
-  The "simple recv" strategy sends the call without waiting for any results.
-  """
+  # Sends the call without waiting for any results.
   def simple_recv(recv_pid, opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
 
@@ -60,9 +83,7 @@ defmodule Twine.Internal.TraceStrategies do
     }
   end
 
-  @doc """
-  The "tracked print" strategy prints the call and waits for results.
-  """
+  # Prints the call and waits for results.
   def tracked_print(opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
     return_mapper = Keyword.get(opts, :return_mapper)
@@ -91,9 +112,7 @@ defmodule Twine.Internal.TraceStrategies do
     }
   end
 
-  @doc """
-  The "tracked recv" strategy sends the call and waits for results.
-  """
+  # Sends the call and waits for results.
   def tracked_recv(recv_pid, opts \\ []) do
     arg_mapper = Keyword.get(opts, :arg_mapper)
     return_mapper = Keyword.get(opts, :return_mapper)

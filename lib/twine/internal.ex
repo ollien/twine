@@ -3,7 +3,47 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
-  @default_ignore_outcome true
+  defmodule TraceConfig do
+    @moduledoc false
+
+    @enforce_keys [
+      :spec,
+      :rate,
+      :arg_mapper,
+      :pid,
+      :return_mapper,
+      :strategy,
+      :ignore_outcome,
+      :internal_debug_logging
+    ]
+    defstruct [
+      :spec,
+      :num_args,
+      :rate,
+      :pid,
+      :arg_mapper,
+      :return_mapper,
+      :strategy,
+      :ignore_outcome,
+      # NOTE: this is for debugging and has no guarantee of stability
+      :internal_debug_logging
+    ]
+
+    def to_recon_opts(%TraceConfig{} = config) do
+      opts =
+        if config.ignore_outcome do
+          []
+        else
+          [return_to: true]
+        end
+
+      if config.pid do
+        Keyword.put(opts, :pid, config.pid)
+      else
+        opts
+      end
+    end
+  end
 
   defguardp is_integer_pair(value)
             when is_tuple(value) and tuple_size(value) == 2 and
@@ -27,48 +67,26 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
-    ignore_outcome = Keyword.get(opts, :ignore_outcome, @default_ignore_outcome)
-
-    if ignore_outcome do
-      do_trace_calls(spec, num_args, rate, &TraceStrategies.simple_print/1, opts)
-    else
-      do_trace_calls(spec, num_args, rate, &TraceStrategies.tracked_print/1, opts)
-    end
-  end
-
-  def do_recv_calls(spec, num_args, rate, opts) do
-    warn_about_memory_usage(rate)
-
-    me = self()
-    ignore_outcome = Keyword.get(opts, :ignore_outcome, @default_ignore_outcome)
-
-    if ignore_outcome do
-      do_trace_calls(
-        spec,
-        num_args,
-        rate,
-        &TraceStrategies.simple_recv(me, &1),
-        opts
-      )
-    else
-      do_trace_calls(
-        spec,
-        num_args,
-        rate,
-        &TraceStrategies.tracked_recv(me, &1),
-        opts
-      )
-    end
-  end
-
-  defp warn_about_memory_usage({_count, _time}) do
-    IO.puts(
-      "#{IO.ANSI.yellow()}Using recv_calls with a rate can consume unbounded memory if messages are not consumed fast enough. You can use Twine.clear() to stop the flow of messages at any point.#{IO.ANSI.reset()}"
+    trace_calls(
+      spec,
+      num_args,
+      rate,
+      TraceStrategies.print(),
+      opts
     )
   end
 
-  defp warn_about_memory_usage(_count) do
-    :ok
+  def do_recv_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
+    warn_about_memory_usage(rate)
+    me = self()
+
+    trace_calls(
+      spec,
+      num_args,
+      rate,
+      TraceStrategies.recv(me),
+      opts
+    )
   end
 
   defp make_matchspec_ast({m, f, a}, guard_clause) do
@@ -154,6 +172,99 @@ defmodule Twine.Internal do
     end
   end
 
+  defp warn_about_memory_usage({_count, _time}) do
+    IO.puts(
+      "#{IO.ANSI.yellow()}Using recv_calls with a rate can consume unbounded memory if messages are not consumed fast enough. You can use Twine.clear() to stop the flow of messages at any point.#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp warn_about_memory_usage(_count) do
+    :ok
+  end
+
+  defp trace_calls(
+         spec,
+         num_args,
+         rate,
+         %TraceStrategies.StrategyChoice{} = strategy_choice,
+         opts
+       ) do
+    build_result =
+      build_config(
+        spec,
+        num_args,
+        rate,
+        strategy_choice,
+        opts
+      )
+
+    case build_result do
+      {:ok, config} ->
+        do_trace_calls(config)
+
+      {:error, error} ->
+        IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
+    end
+  end
+
+  defp build_config(
+         {m, f, spec_func},
+         num_args,
+         rate,
+         %TraceStrategies.StrategyChoice{} = strategy_choice,
+         opts
+       ) do
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
+    {arg_mapper, opts} = Keyword.pop(opts, :arg_mapper, nil)
+    {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
+    {internal_debug_logging, opts} = Keyword.pop(opts, :internal_debug_logging, false)
+
+    rate =
+      if ignore_outcome do
+        rate
+      else
+        correct_rate_for_tracked(rate)
+      end
+
+    spec =
+      if ignore_outcome do
+        {m, f, fun_to_ms(spec_func, &inject_simple_actions/1)}
+      else
+        {m, f, fun_to_ms(spec_func, &inject_tracked_actions/1)}
+      end
+
+    strategy =
+      if ignore_outcome do
+        strategy_choice.simple.(
+          arg_mapper: arg_mapper,
+          return_mapper: return_mapper,
+          debug_logging: internal_debug_logging
+        )
+      else
+        strategy_choice.tracked.(
+          arg_mapper: arg_mapper,
+          return_mapper: return_mapper,
+          debug_logging: internal_debug_logging
+        )
+      end
+
+    config = %TraceConfig{
+      spec: spec,
+      rate: rate,
+      arg_mapper: arg_mapper,
+      return_mapper: return_mapper,
+      strategy: strategy,
+      ignore_outcome: ignore_outcome,
+      pid: Keyword.get(opts, :pid, nil),
+      internal_debug_logging: internal_debug_logging
+    }
+
+    with :ok <- validate_arg_mapper(config.arg_mapper, num_args),
+         :ok <- validate_return_mapper(config.return_mapper) do
+      {:ok, config}
+    end
+  end
+
   defp validate_guard_identifiers(_args, nil) do
     :ok
   end
@@ -177,65 +288,35 @@ defmodule Twine.Internal do
     end
   end
 
-  defp do_trace_calls(spec, num_args, rate, select_strategy, opts) do
-    {arg_mapper, opts} = Keyword.pop(opts, :arg_mapper, nil)
-    {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
+  defp do_trace_calls(%TraceConfig{} = config) do
     # NOTE: this is for debugging and has no guarantee of stability
-    {debug_logging, opts} = Keyword.pop(opts, :internal_debug_logging, false)
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, @default_ignore_outcome)
+    recon_opts =
+      config
+      |> TraceConfig.to_recon_opts()
+      |> Keyword.put(:formatter, config.strategy.format_fn)
+      |> Keyword.put(:scope, :local)
 
-    with :ok <- validate_arg_mapper(arg_mapper, num_args),
-         :ok <- validate_return_mapper(return_mapper) do
-      strategy =
-        select_strategy.(
-          arg_mapper: arg_mapper,
-          return_mapper: return_mapper,
-          debug_logging: debug_logging
-        )
+    matches =
+      :recon_trace.calls(
+        config.spec,
+        config.rate,
+        recon_opts
+      )
 
-      recon_opts =
-        opts
-        |> Keyword.take([:pid])
-        |> Keyword.put(:formatter, strategy.format_fn)
-        |> Keyword.put(:scope, :local)
-
-      {m, f, func} = spec
-
-      matches =
-        if ignore_outcome do
-          :recon_trace.calls(
-            {m, f, fun_to_ms(func, &inject_simple_actions/1)},
-            rate,
-            recon_opts
-          )
-        else
-          :recon_trace.calls(
-            {m, f, fun_to_ms(func, &inject_tracked_actions/1)},
-            correct_rate(rate),
-            Keyword.put(recon_opts, :return_to, true)
-          )
-        end
-
-      # If there are no matches, make sure we clean up the strategy since they can't clean themselves up
-      if matches == 0 do
-        strategy.cleanup_fn.()
-      end
-
-      match_output(matches)
-    else
-      {:error, error} ->
-        IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
-
-        :error
+    # If there are no matches, make sure we clean up the strategy since they can't clean themselves up
+    if matches == 0 do
+      config.strategy.cleanup_fn.()
     end
+
+    match_output(matches)
   end
 
   # We will get a return_from for every call, so we should tolerate double the messages for completeness
-  defp correct_rate({count, time}) when is_integer(count) and is_integer(time) do
+  defp correct_rate_for_tracked({count, time}) when is_integer(count) and is_integer(time) do
     {count * 3, time}
   end
 
-  defp correct_rate(rate) when is_integer(rate) do
+  defp correct_rate_for_tracked(rate) when is_integer(rate) do
     rate * 3
   end
 
