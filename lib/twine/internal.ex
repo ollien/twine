@@ -3,6 +3,8 @@ defmodule Twine.Internal do
   # This module exists so that the macros can access these functions, but there
   # is absolutely no guarantee around their stability
 
+  @default_ignore_outcome true
+
   defguardp is_integer_pair(value)
             when is_tuple(value) and tuple_size(value) == 2 and
                    is_integer(elem(value, 0)) and is_integer(elem(value, 1))
@@ -25,7 +27,7 @@ defmodule Twine.Internal do
   end
 
   def do_print_calls(spec, num_args, rate, opts) when is_integer(rate) or is_integer_pair(rate) do
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
+    ignore_outcome = Keyword.get(opts, :ignore_outcome, @default_ignore_outcome)
 
     if ignore_outcome do
       do_trace_calls(spec, num_args, rate, &TraceStrategies.simple_print/1, opts)
@@ -38,7 +40,7 @@ defmodule Twine.Internal do
     warn_about_memory_usage(rate)
 
     me = self()
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
+    ignore_outcome = Keyword.get(opts, :ignore_outcome, @default_ignore_outcome)
 
     if ignore_outcome do
       do_trace_calls(
@@ -180,6 +182,7 @@ defmodule Twine.Internal do
     {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
     # NOTE: this is for debugging and has no guarantee of stability
     {debug_logging, opts} = Keyword.pop(opts, :internal_debug_logging, false)
+    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, @default_ignore_outcome)
 
     with :ok <- validate_arg_mapper(arg_mapper, num_args),
          :ok <- validate_return_mapper(return_mapper) do
@@ -194,17 +197,24 @@ defmodule Twine.Internal do
         opts
         |> Keyword.take([:pid])
         |> Keyword.put(:formatter, strategy.format_fn)
-        |> Keyword.put(:return_to, true)
         |> Keyword.put(:scope, :local)
 
       {m, f, func} = spec
 
       matches =
-        :recon_trace.calls(
-          {m, f, fun_to_ms(func)},
-          correct_rate(rate),
-          recon_opts
-        )
+        if ignore_outcome do
+          :recon_trace.calls(
+            {m, f, fun_to_ms(func, &inject_simple_actions/1)},
+            rate,
+            recon_opts
+          )
+        else
+          :recon_trace.calls(
+            {m, f, fun_to_ms(func, &inject_tracked_actions/1)},
+            correct_rate(rate),
+            Keyword.put(recon_opts, :return_to, true)
+          )
+        end
 
       # If there are no matches, make sure we clean up the strategy since they can't clean themselves up
       if matches == 0 do
@@ -370,7 +380,7 @@ defmodule Twine.Internal do
   # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
   # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
   # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  defp fun_to_ms(shell_fun) when is_function(shell_fun) do
+  defp fun_to_ms(shell_fun, inject_actions) when is_function(shell_fun) do
     case :erl_eval.fun_data(shell_fun) do
       {:fun_data, import_list, clauses} ->
         case :ms_transform.transform_from_shell(:dbg, clauses, import_list) do
@@ -382,7 +392,7 @@ defmodule Twine.Internal do
             {:error, :transform_error}
 
           match_function ->
-            Enum.map(match_function, &inject_actions/1)
+            Enum.map(match_function, inject_actions)
         end
     end
   end
@@ -392,11 +402,36 @@ defmodule Twine.Internal do
   # The easiest way to do it is to just transform a sentinel atom into the actions we want
   #
   # https://www.erlang.org/doc/apps/erts/match_spec
-  defp inject_actions({head, conditions, actions}) do
+  defp inject_tracked_actions({head, conditions, actions}) do
     actions =
       Enum.flat_map(actions, fn
         :TWINE_HANDLE_ACTION ->
           [{:return_trace}, {:exception_trace}]
+
+        action ->
+          [action]
+      end)
+
+    {head, conditions, actions}
+  end
+
+  defp inject_simple_actions({head, conditions, actions}) do
+    actions =
+      Enum.flat_map(actions, fn
+        :TWINE_HANDLE_ACTION ->
+          # When we use a "simple" action, we don't want to inject any actions.
+          # Fun fact: return_trace actually DISABLES TCO!!
+          #
+          # > Warning: If the traced function is tail-recursive, this match
+          # > specification function destroys that property. Hence, if a match
+          # > specification executing this function is used on a perpetual server
+          # > process, it can only be active for a limited period of time, or the
+          # > emulator will eventually use all memory in the host machine and
+          # > crash. If this match specification function is inhibited using
+          # > process trace flag silent, tail-recursiveness still remains.
+          #
+          # https://www.erlang.org/doc/apps/erts/match_spec.html
+          []
 
         action ->
           [action]
