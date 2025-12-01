@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.0] - 2025-11-30
 ### Changed
 - `ignore_outcome` has been replaced with `show_outcome`, to make the default
 more clear. As an upgrade, `ignore_outcome` is still accepted, but deprecated.
@@ -68,7 +70,8 @@ so this has been changed.
 
 Initial Release
 
-[Unreleased]: https://github.com/ollien/twine/compare/v0.4.3..
+[Unreleased]: https://github.com/ollien/twine/compare/v0.5.0..
+[0.5.0]: https://github.com/ollien/twine/compare/v0.4.3..v0.5.0
 [0.4.3]: https://github.com/ollien/twine/compare/v0.4.2..v0.4.3
 [0.4.2]: https://github.com/ollien/twine/compare/v0.4.1..v0.4.2
 [0.4.1]: https://github.com/ollien/twine/compare/v0.4.0..v0.4.1
