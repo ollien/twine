@@ -63,7 +63,7 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      test "prints recursive invocations" do
+      test "prints tail recursive invocations" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -74,6 +74,76 @@ defmodule Twine.TraceMacroCase do
               end
 
               def func(n) when n > 0 do
+                func(n - 1)
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_n), 4, unquote(base_opts))
+            Blah.func(3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(3)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(2)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(0)"
+
+        # Incorrect CallTracker implementations will print this for recursive functions
+        refute TestHelper.strip_ansi(output) =~
+                 "Twine received call event before previous call completed"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "prints non-tail recursive invocations" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(0) do
+                nil
+              end
+
+              def func(n) when n > 0 do
+                {:ok, func(n - 1)}
+              end
+            end
+
+            Twine.unquote(macro_name)(Blah.func(_n), 4, unquote(base_opts))
+            Blah.func(3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(3)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(2)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(1)"
+        assert TestHelper.strip_ansi(output) =~ "Blah.func(0)"
+
+        # Incorrect CallTracker implementations will print this for recursive functions
+        refute TestHelper.strip_ansi(output) =~
+                 "Twine received call event before previous call completed"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "prints indirect recursion" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(0) do
+                nil
+              end
+
+              def func(n) when n > 0 do
+                {:ok, helper(n)}
+              end
+
+              def helper(n) do
                 func(n - 1)
               end
             end
