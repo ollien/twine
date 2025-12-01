@@ -309,6 +309,18 @@ traces. This behavior can be opted into with `ignore_outcome: false` to
 `print_calls`/`recv_calls`, if your function is particularly long-running, or
 you are just simply not interested in the extra output.
 
+> #### Warning {: .warning}
+>
+> Displaying function outcomes requires commanding the VM to disable tail-call
+> optimizations on the traced function. While in most cases this is not an
+> issue, **using `ignore_outcome: false` in a hot tail-recursive path with
+> large arguments can quickly cause the node to run out of memory**. This does
+> not apply if `ignore_outcome: true` is used (the default).
+>
+> For more information, see [the Erlang `match_spec`
+> docs](https://www.erlang.org/docs/28/apps/erts/match_spec.html) under
+> "`return_trace`".
+
 #### Returned Values
 
 When a function returns without failure, Twine will print its return value and
