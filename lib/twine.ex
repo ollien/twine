@@ -6,7 +6,7 @@ defmodule Twine do
 
   defmodule TracedCall do
     @doc """
-    A call that has been send to the shell via recv_calls. If `show_outcome:
+    A call that has been send to the shell via recv_calls. If `track_outcome:
     false` was provided, `outcome` will always be nil. Otherwise, it will
     contain the outcome of the traced call. 
     """
@@ -85,8 +85,8 @@ defmodule Twine do
   printing it. This can be useful if you are tracing a call on a function that
   has a very large return value, and want to reduce it down before printing it.
   This function must have an arity of 1, and return the value directly. If this
-  is supplied with `show_outcome: false`, it will not be called.
-  - `show_outcome`: If true, calls are printed with their outcome (crash,
+  is supplied with `track_outcome: false`, it will not be called.
+  - `track_outcome`: If true, calls are printed with their outcome (crash,
   return, exception) once they complete. If false, calls are printed
   immediately, without waiting for their the outcome. Defaults to false.
   """
@@ -106,7 +106,7 @@ defmodule Twine do
   @doc """
   Identical to `print_calls/2`, but instead of printing the calls, it sends
   them to the calling process. The message will be a `TracedCall` structure.
-  If `show_outcome` is specified as false, then `outcome` on the structure
+  If `track_outcome` is specified as false, then `outcome` on the structure
   will be `nil`.
   """
   defmacro recv_calls(call, rate, opts \\ []) do

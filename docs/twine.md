@@ -67,9 +67,9 @@ amounts of memory.
 By default, Twine will print that the call itself occurred, and not information
 about its outcome (return values, thrown/caught exceptions, and process
 crashes/termination). If you would like to display these outcomes, pass
-`show_outcome: true` to `print_calls`/`recv_calls`. There are some caveats,
+`track_outcome: true` to `print_calls`/`recv_calls`. There are some caveats,
 however, so be sure to read [Function Outcomes](#function-outcomes) before
-using `show_outcome`.
+using `track_outcome`.
 
 
 ### Tracing All Calls To A Function
@@ -103,12 +103,12 @@ iex>
 [2025-07-27 20:29:57.837534Z] #PID<0.177.0> - Enum.filter([4, 5, 6], #Function<42.39164016/1 in :erl_eval.expr/6>)
 ```
 
-We can also use `show_outcome: true` to output the return value and location
+We can also use `track_outcome: true` to output the return value and location
 the code returns to. Note that this option is not suitable for hot recursive
 code paths - see [Function Outcomes](#function-outcomes) for more details.
 ```elixir
 iex> require Twine
-iex> Twine.print_calls(Enum.filter([head | rest], func), 5, show_outcome: true)
+iex> Twine.print_calls(Enum.filter([head | rest], func), 5, track_outcome: true)
 1 function(s) matched, waiting for calls...
 :ok
 iex>
@@ -207,7 +207,7 @@ iex> Twine.print_calls(
     # :ignored is not special here, it is just a placeholder.
     {msg, from, :ignored}
   end,
-  show_outcome: true
+  track_outcome: true
 )
 iex>
 1 function(s) matched, waiting for calls...
@@ -225,7 +225,7 @@ iex>
 ```
 
 `return_mapper` behaves identically to `arg_mapper`, but it is a 1-arity
-function that replaces the return value. Unlike `arg_mapper`, it has no effect if `show_outcome`
+function that replaces the return value. Unlike `arg_mapper`, it has no effect if `track_outcome`
 is set to `false`.
 
 ```elixir
@@ -240,7 +240,7 @@ iex> Twine.print_calls(
     {:reply, reply, _state} ->
       {:reply, reply, :ignored}
   end,
-  show_outcome: true
+  track_outcome: true
 )
 1 function(s) matched, waiting for calls...
 :ok
@@ -281,7 +281,7 @@ iex> Twine.print_calls(
     {:reply, reply, state} ->
       state.subscribers
   end,
-  show_outcome: true
+  track_outcome: true
 )
 1 function(s) matched, waiting for calls...
 :ok
@@ -306,16 +306,16 @@ iex>
 ### Function Outcomes
 
 As mentioned, Twine can print the different outcomes of the functions it
-traces. This behavior can be opted into with `show_outcome: true` to
+traces. This behavior can be opted into with `track_outcome: true` to
 `print_calls`/`recv_calls`.
 
 > #### Warning {: .warning}
 >
 > Displaying function outcomes requires commanding the VM to disable tail-call
 > optimizations on the traced function. While in most cases this is not an
-> issue, **using `show_outcome: true` in a hot tail-recursive path with
+> issue, **using `track_outcome: true` in a hot tail-recursive path with
 > large arguments can quickly cause the node to run out of memory**. This does
-> not apply if `show_outcome: false` is used (the default).
+> not apply if `track_outcome: false` is used (the default).
 >
 > For more information, see [the Erlang `match_spec`
 > docs](https://www.erlang.org/docs/28/apps/erts/match_spec.html) under
@@ -384,7 +384,7 @@ First, make sure you're matching the correct process and/or function.
 Assuming you've gotten both of these right, it is possible that `recon_trace`
 did in fact match your call correctly, but it is taking time to generate the
 output. Depending on the size of your call, this may take a couple of minutes.
-You can use `arg_mapper`, `return_mapper`, and `show_outcome: false` to reduce
+You can use `arg_mapper`, `return_mapper`, and `track_outcome: false` to reduce
 output size.
 
 ### Why can't I use the pin operator or shell variables in guards?

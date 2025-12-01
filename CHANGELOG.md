@@ -7,18 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-12-01
+### Fixed
+- Fixed typo in doc-comment that used incorrect name for `track_outcome`.
+
 ## [0.5.0] - 2025-11-30
 ### Changed
-- `ignore_outcome` has been replaced with `show_outcome`, to make the default
+- `ignore_outcome` has been replaced with ~~`show_outcome`~~ `track_outcome`, to make the default
 more clear. As an upgrade, `ignore_outcome` is still accepted, but deprecated.
 This will be removed in a future release.
 
 ### Fixed
-- Recursive calls can now be tracked with `show_outcome: true`. Previously,
+- Recursive calls can now be tracked with `track_outcome: true`. Previously,
 `Twine` incorrectly assumed that there would be only one active call per pid,
 which was incorrect.
-- Fixed memory runaway in tail-recursive calls when using `show_outcome: false`.
-- To reduce overhead, arguments/return values are mapped before being stored in memory when `show_outcome: true` is specified.
+- Fixed memory runaway in tail-recursive calls when using `track_outcome: false`.
+- To reduce overhead, arguments/return values are mapped before being stored in memory when `track_outcome: true` is specified.
 - Error messages are more clear when giving incorrect `&function/arity` syntax.
 
 ## [0.4.3] - 2025-10-07
