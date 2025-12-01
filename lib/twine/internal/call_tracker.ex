@@ -31,6 +31,8 @@ defmodule Twine.Internal.CallTracker do
   end
 
   defmodule TrackedCall do
+    @moduledoc false
+
     @enforce_keys [:mfa]
     defstruct [:mfa, events: %{}]
   end
