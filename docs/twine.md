@@ -397,3 +397,7 @@ Identifiers in guard must exist in argument pattern. Invalid identifiers: ...
 Unfortunately, `recon_trace` does not support checking these bound values when
 it converts functions to matchspecs. This is a limitation of how Twine wraps
 `recon_trace`.
+
+### Can Twine track more than one function at a time?
+Unfortunately not. This is not supported by `recon_trace`, so only one instance
+of `print_calls`/`recv_calls` can be active at a time.
