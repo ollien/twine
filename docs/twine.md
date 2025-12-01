@@ -75,6 +75,7 @@ it must keep a copy of your function arguments.
 
 ### Tracing All Calls To A Function
 
+
 If you want to view all instances a function is called, you can typically use
 `Twine.print_calls` without any options. For instance, the following will print
 up to five calls to `Enum.filter`, across all processes running on the node.
@@ -85,17 +86,9 @@ iex> Twine.print_calls(Enum.filter(list, func), 5)
 1 function(s) matched, waiting for calls...
 :ok
 iex>
-[2025-09-29 21:10:20.207858Z] #PID<0.207.0> - Enum.filter([1, 2, 3], #Function<42.3316493/1 in :erl_eval.expr/6>)
-                              ├ Returned: [2]
-                              └ Returned to: MyModule.my_function/2
-
-[2025-09-29 21:10:25.962855Z] #PID<0.208.0> - Enum.filter([], #Function<42.3316493/1 in :erl_eval.expr/6>)
-                              ├ Returned: []
-                              └ Returned to: MyModule.my_function/2
-
-[2025-09-29 21:10:31.746820Z] #PID<0.209.0> - Enum.filter([4, 5, 6], #Function<42.3316493/1 in :erl_eval.expr/6>)
-                              ├ Returned: [4, 6]
-                              └ Returned to: MyModule.my_function/2
+[2025-07-27 20:28:50.233475Z] #PID<0.177.0> - Enum.filter([1, 2, 3], #Function<42.39164016/1 in :erl_eval.expr/6>)
+[2025-07-27 20:29:04.511325Z] #PID<0.177.0> - Enum.filter([], #Function<42.39164016/1 in :erl_eval.expr/6>)
+[2025-07-27 20:29:19.975102Z] #PID<0.177.0> - Enum.filter([4, 5, 6], #Function<42.39164016/1 in :erl_eval.expr/6>)
 ```
 
 
@@ -104,6 +97,17 @@ will print up to five calls to `Enum.filter/2` with a non-empty list.
 ```elixir
 iex> require Twine
 iex> Twine.print_calls(Enum.filter([head | rest], func), 5)
+1 function(s) matched, waiting for calls...
+:ok
+iex>
+[2025-07-27 20:29:53.934746Z] #PID<0.177.0> - Enum.filter([1, 2, 3], #Function<42.39164016/1 in :erl_eval.expr/6>)
+[2025-07-27 20:29:57.837534Z] #PID<0.177.0> - Enum.filter([4, 5, 6], #Function<42.39164016/1 in :erl_eval.expr/6>)
+```
+
+We can also use `ignore_outcome: false` to output the return value and location the code returns to.
+```elixir
+iex> require Twine
+iex> Twine.print_calls(Enum.filter([head | rest], func), 5, ignore_outcome: false)
 1 function(s) matched, waiting for calls...
 :ok
 iex>
@@ -118,7 +122,7 @@ iex>
 
 ### Scoping Calls To A Process
 
-Often, we are more interested in tracing what a specific process is doing, rather
+Often, we are more interested in tracing what specific process is doing, rather
 than when a function is called. Twine allows you to do this with the `pid`
 option. For instance, this will print all the times a GenServer's `handle_call`
 handler is called, up to a rate of 10 per second.
@@ -135,18 +139,9 @@ iex> Twine.print_calls(
 1 function(s) matched, waiting for calls...
 :ok
 iex>
-[2025-09-30 02:36:13.713805Z] #PID<0.196.0> - MyServer.handle_call({:subscribe, "listener", #PID<0.205.0>}, {#PID<0.204.0>, [:alias | #Reference<0.0.26115.997879830.1279590406.197591>]}, %{subscribers: []})
-                              ├ Returned: {:reply, :ok, %{subscribers: [{"listener", #PID<0.205.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
-
-[2025-09-30 02:36:16.664113Z] #PID<0.196.0> - MyServer.handle_call({:subscribe, "listener2", #PID<0.207.0>}, {#PID<0.206.0>, [:alias | #Reference<0.0.26371.997879830.1279590406.197674>]}, %{subscribers: [{"listener", #PID<0.205.0>}]})
-                              ├ Returned: {:reply, :ok,
-                              │            %{subscribers: [{"listener2", #PID<0.207.0>}, {"listener", #PID<0.205.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
-
-[2025-09-30 02:36:18.217059Z] #PID<0.196.0> - MyServer.handle_call({:unsubscribe, "listener2"}, {#PID<0.208.0>, [:alias | #Reference<0.0.26627.997879830.1279590406.197702>]}, %{subscribers: [{"listener2", #PID<0.207.0>}, {"listener", #PID<0.205.0>}]})
-                              ├ Returned: {:reply, :ok, %{subscribers: [{"listener", #PID<0.205.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
+[2025-07-27 20:43:27.683690Z] #PID<0.181.0> - Server.handle_call({:subscribe, "listener", #PID<0.189.0>}, {#PID<0.182.0>, [:alias | #Reference<0.0.23299.892277068.2243493891.5200>]}, %{subscribers: []})
+[2025-07-27 20:43:29.700879Z] #PID<0.181.0> - Server.handle_call({:subscribe, "listener2", #PID<0.191.0>}, {#PID<0.182.0>, [:alias | #Reference<0.0.23299.892277068.2243493890.3014>]}, %{subscribers: [{"listener", #PID<0.189.0>}]})
+[2025-07-27 20:44:17.312923Z] #PID<0.181.0> - Server.handle_call({:unsubscribe, "listener2"}, {#PID<0.182.0>, [:alias | #Reference<0.0.23299.892277068.2243493891.5293>]}, %{subscribers: [{"listener2", #PID<0.191.0>}, {"listener", #PID<0.189.0>}]})
 ```
 
 Pattern matching works here as well, so we can filter calls to only ones we care
@@ -164,14 +159,9 @@ iex> Twine.print_calls(
 1 function(s) matched, waiting for calls...
 :ok
 iex>
-[2025-09-30 02:37:30.790503Z] #PID<0.196.0> - MyServer.handle_call({:subscribe, "listener", #PID<0.205.0>}, {#PID<0.204.0>, [:alias | #Reference<0.0.26115.1443443586.1280638978.194245>]}, %{subscribers: []})
-                              ├ Returned: {:reply, :ok, %{subscribers: [{"listener", #PID<0.205.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
 
-[2025-09-30 02:37:32.344172Z] #PID<0.196.0> - MyServer.handle_call({:subscribe, "listener2", #PID<0.207.0>}, {#PID<0.206.0>, [:alias | #Reference<0.0.26371.1443443586.1280638978.194314>]}, %{subscribers: [{"listener", #PID<0.205.0>}]})
-                              ├ Returned: {:reply, :ok,
-                              │            %{subscribers: [{"listener2", #PID<0.207.0>}, {"listener", #PID<0.205.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
+[2025-07-27 20:36:23.445375Z] #PID<0.196.0> - Server.handle_call({:subscribe, "listener", #PID<0.197.0>}, {#PID<0.197.0>, [:alias | #Reference<0.0.25219.3166356339.1974009859.127473>]}, %{subscribers: []})
+[2025-07-27 20:37:05.858377Z] #PID<0.196.0> - Server.handle_call({:subscribe, "listener2", #PID<0.212.0>}, {#PID<0.197.0>, [:alias | #Reference<0.0.25219.3166356339.1974009859.127485>]}, %{subscribers: [{"listener", #PID<0.197.0>}]})
 ```
 
 You can even use guards, if you need to refine your match further.
@@ -188,10 +178,8 @@ iex> Twine.print_calls(
 1 function(s) matched, waiting for calls...
 :ok
 iex>
-[2025-09-30 02:38:28.214372Z] #PID<0.208.0> - MyServer.handle_call({:subscribe, "listener2", #PID<0.216.0>}, {#PID<0.215.0>, [:alias | #Reference<0.0.27523.1443443586.1280638978.194498>]}, %{subscribers: [{"listener", #PID<0.214.0>}]})
-                              ├ Returned: {:reply, :ok,
-                              │            %{subscribers: [{"listener2", #PID<0.216.0>}, {"listener", #PID<0.214.0>}]}}
-                              └ Returned to: :gen_server.try_handle_call/4
+
+[2025-08-10 16:34:27.328975Z] #PID<0.202.0> - MyServer.handle_call({:subscribe, "listener2", #PID<0.203.0>}, {#PID<0.203.0>, [:alias | #Reference<0.0.25987.1847409877.3450142743.162317>]}, %{subscribers: [{"listener", #PID<0.203.0>}]})
 ```
 
 ### Removing Useless Information
@@ -235,7 +223,9 @@ iex>
                               └ Returned to: :gen_server.try_handle_call/4
 ```
 
-`return_mapper` behaves identically to `arg_mapper`, but it is a 1-arity function that replaces the return value.
+`return_mapper` behaves identically to `arg_mapper`, but it is a 1-arity
+function that replaces the return value. It has no effect if `ignore_outcome`
+is set to `true`.
 
 ```elixir
 iex> Twine.print_calls(
@@ -314,7 +304,7 @@ iex>
 
 ### Function Outcomes
 
-As mentioned, Twine will print the different outcomes of the functions it
+As mentioned, Twine can print the different outcomes of the functions it
 traces. This behavior can be opted into with `ignore_outcome: false` to
 `print_calls`/`recv_calls`, if your function is particularly long-running, or
 you are just simply not interested in the extra output.
