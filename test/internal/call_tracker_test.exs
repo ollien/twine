@@ -363,4 +363,78 @@ defmodule Twine.Internal.CallTrackerTest do
 
     assert_receive {:error, {:no_callstack, ^pid, :unknown, {:return_from, :ok}}}, 250
   end
+
+  test "uses the arg_mapper to map arguments" do
+    {:ok, tracker} =
+      CallTracker.start_link(send_to(self()), arg_mapper: fn [a, b] -> [a * 2, b * 3] end)
+
+    pid = :erlang.list_to_pid(~c"<0.1.0>")
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [1, 2]}}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :my_function, 2}, :ok}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
+    )
+
+    expected_ready_payload =
+      {
+        pid,
+        {MyModule, :my_function, [2, 6]},
+        %{:return_from => :ok, :return_to => {MyModule, :my_parent_function, 0}}
+      }
+
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
+  end
+
+  test "uses the return_mapper to map return values" do
+    {:ok, tracker} =
+      CallTracker.start_link(send_to(self()), return_mapper: fn x -> x * 2 end)
+
+    pid = :erlang.list_to_pid(~c"<0.1.0>")
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :call, {MyModule, :my_function, [1, 2]}}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_from, {MyModule, :my_function, 2}, 123}
+    )
+
+    assert_receive {:ok, %CallTracker.Result{status: :not_ready, warnings: []}}, 250
+
+    CallTracker.handle_event(
+      tracker,
+      {:trace, pid, :return_to, {MyModule, :my_parent_function, 0}}
+    )
+
+    expected_ready_payload =
+      {
+        pid,
+        {MyModule, :my_function, [1, 2]},
+        %{:return_from => 246, :return_to => {MyModule, :my_parent_function, 0}}
+      }
+
+    assert_receive {:ok,
+                    %CallTracker.Result{status: {:ready, ^expected_ready_payload}, warnings: []}},
+                   250
+  end
 end

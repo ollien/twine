@@ -9,9 +9,13 @@ defmodule Twine.Internal.CallTracker do
   defmodule State do
     @moduledoc false
 
-    @enforce_keys [:result_callback, :tracer_down_timeout]
+    @enforce_keys [:result_callback, :tracer_down_timeout, :arg_mapper, :return_mapper]
     defstruct [
       :result_callback,
+      # N.B. Despite sharing a name, this arg_mapper is not the same as the one we use in Internal, because it actually
+      # accepts the _list_ of arguments. This is done this way for consistency with some the print variants.
+      :arg_mapper,
+      :return_mapper,
       :tracer_down_timeout,
       tracked_pids: %{},
       tracer_monitor_ref: nil,
@@ -77,12 +81,16 @@ defmodule Twine.Internal.CallTracker do
   def init({result_callback, opts}) do
     debug_enabled = Keyword.get(opts, :debug_logging, false)
     tracer_down_timeout = Keyword.get(opts, :tracer_down_timeout, @default_tracer_down_timeout)
+    arg_mapper = Keyword.get(opts, :arg_mapper, fn x -> x end)
+    return_mapper = Keyword.get(opts, :return_mapper, fn x -> x end)
 
     {:ok,
      %State{
        result_callback: result_callback,
        debug_enabled: debug_enabled,
-       tracer_down_timeout: tracer_down_timeout
+       tracer_down_timeout: tracer_down_timeout,
+       arg_mapper: arg_mapper,
+       return_mapper: return_mapper
      }}
   end
 
@@ -237,9 +245,13 @@ defmodule Twine.Internal.CallTracker do
     {:noreply, state}
   end
 
-  defp track_call(pid, {_module, _function, _args} = mfa, %State{} = state) do
+  defp track_call(pid, {module, function, args}, %State{} = state) do
     {%TrackedPID{} = tracked_pid, %State{} = state} = ensure_pid_tracked(pid, state)
-    tracked_call = %TrackedCall{mfa: mfa}
+
+    tracked_call = %TrackedCall{
+      mfa: {module, function, state.arg_mapper.(args)}
+    }
+
     state = put_in(state.tracked_pids[pid].call_stack, [tracked_call | tracked_pid.call_stack])
 
     {:ok, state}
@@ -247,7 +259,13 @@ defmodule Twine.Internal.CallTracker do
 
   defp track_return_from(pid, {_module, _function, _args} = mfa, return_value, %State{} = state)
        when is_pid(pid) do
-    track_call_exit(pid, mfa, :return_from, return_value, state)
+    track_call_exit(
+      pid,
+      mfa,
+      :return_from,
+      state.return_mapper.(return_value),
+      state
+    )
   end
 
   defp track_exception_from(pid, {_module, _function, _args} = mfa, exception, %State{} = state)
