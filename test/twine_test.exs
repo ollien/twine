@@ -660,7 +660,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, ignore_outcome: false)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, track_outcome: true)
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -694,7 +694,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, ignore_outcome: false)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, track_outcome: true)
             Blah.doit()
 
             Code.eval_quoted(unquote(generate_output))
@@ -724,7 +724,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
               end
             end
 
-            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, ignore_outcome: false)
+            Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1, track_outcome: true)
 
             # We specifically don't use an anonymous fn here so we don't get a return event for going back to iex
             spawn(&Blah.doit/0)
@@ -754,7 +754,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
 
             Twine.unquote(macro_name)(Blah.func(_a, _b, _c), 1,
               return_mapper: &String.upcase/1,
-              ignore_outcome: false
+              track_outcome: true
             )
 
             Blah.func(1, 2, 3)
@@ -782,7 +782,7 @@ defmodule Twine.TrackedOnlyTraceMacroCase do
               Blah.func(_arg1, _arg2, _arg3),
               1,
               return_mapper: fn a, b -> nil end,
-              ignore_outcome: false
+              track_outcome: true
             )
           end
 
@@ -799,7 +799,7 @@ defmodule Twine.PrintCallsTestTracked do
   use Twine.TraceMacroCase,
     async: true,
     macro_name: :print_calls,
-    base_opts: [ignore_outcome: false],
+    base_opts: [track_outcome: true],
     generate_output: TestHelper.generate_print_output_ast()
 end
 
@@ -822,7 +822,7 @@ defmodule Twine.RecvCallsTestTracked do
   use Twine.TraceMacroCase,
     async: true,
     macro_name: :recv_calls,
-    base_opts: [ignore_outcome: false],
+    base_opts: [track_outcome: true],
     generate_output: TestHelper.generate_tracked_recv_output_ast()
 end
 

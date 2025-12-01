@@ -15,7 +15,7 @@ defmodule Twine.Internal do
       :pid,
       :return_mapper,
       :strategy,
-      :ignore_outcome,
+      :track_outcome,
       :internal_debug_logging
     ]
     defstruct [
@@ -26,17 +26,17 @@ defmodule Twine.Internal do
       :arg_mapper,
       :return_mapper,
       :strategy,
-      :ignore_outcome,
+      :track_outcome,
       # NOTE: this is for debugging and has no guarantee of stability
       :internal_debug_logging
     ]
 
     def to_recon_opts(%TraceConfig{} = config) do
       opts =
-        if config.ignore_outcome do
-          []
-        else
+        if config.track_outcome do
           [return_to: true]
+        else
+          []
         end
 
       if config.pid do
@@ -155,34 +155,37 @@ defmodule Twine.Internal do
          %TraceStrategies.StrategyChoice{} = strategy_choice,
          opts
        ) do
-    {ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, true)
+    {provided_track_outcome, opts} = Keyword.pop(opts, :track_outcome, nil)
+    {provided_ignore_outcome, opts} = Keyword.pop(opts, :ignore_outcome, nil)
     {arg_mapper, opts} = Keyword.pop(opts, :arg_mapper, nil)
     {return_mapper, opts} = Keyword.pop(opts, :return_mapper, nil)
     {internal_debug_logging, opts} = Keyword.pop(opts, :internal_debug_logging, false)
 
+    track_outcome = resolve_track_outcome_option(provided_track_outcome, provided_ignore_outcome)
+
     rate =
-      if ignore_outcome do
-        rate
-      else
+      if track_outcome do
         correct_rate_for_tracked(rate)
+      else
+        rate
       end
 
     spec =
-      if ignore_outcome do
-        {m, f, fun_to_ms(spec_func, &inject_simple_actions/1)}
-      else
+      if track_outcome do
         {m, f, fun_to_ms(spec_func, &inject_tracked_actions/1)}
+      else
+        {m, f, fun_to_ms(spec_func, &inject_simple_actions/1)}
       end
 
     strategy =
-      if ignore_outcome do
-        strategy_choice.simple.(
+      if track_outcome do
+        strategy_choice.tracked.(
           arg_mapper: arg_mapper,
           return_mapper: return_mapper,
           debug_logging: internal_debug_logging
         )
       else
-        strategy_choice.tracked.(
+        strategy_choice.simple.(
           arg_mapper: arg_mapper,
           return_mapper: return_mapper,
           debug_logging: internal_debug_logging
@@ -195,7 +198,7 @@ defmodule Twine.Internal do
       arg_mapper: arg_mapper,
       return_mapper: return_mapper,
       strategy: strategy,
-      ignore_outcome: ignore_outcome,
+      track_outcome: track_outcome,
       pid: Keyword.get(opts, :pid, nil),
       internal_debug_logging: internal_debug_logging
     }
@@ -203,6 +206,39 @@ defmodule Twine.Internal do
     with :ok <- validate_arg_mapper(config.arg_mapper, num_args),
          :ok <- validate_return_mapper(config.return_mapper) do
       {:ok, config}
+    end
+  end
+
+  defp resolve_track_outcome_option(track_outcome, ignore_outcome)
+       when is_nil(track_outcome) and is_nil(ignore_outcome) do
+    # By default, we don't show outcome
+    false
+  end
+
+  defp resolve_track_outcome_option(track_outcome, ignore_outcome)
+       when is_boolean(track_outcome) and is_nil(ignore_outcome) do
+    track_outcome
+  end
+
+  defp resolve_track_outcome_option(track_outcome, ignore_outcome)
+       when is_boolean(track_outcome) and is_boolean(ignore_outcome) do
+    IO.puts(
+      "#{IO.ANSI.yellow()}ignore_outcome is deprecated. Use track_outcome instead (with an inverted value). Since both have been provided, `track_outcome` will take precedence.#{IO.ANSI.reset()}"
+    )
+
+    track_outcome
+  end
+
+  defp resolve_track_outcome_option(track_outcome, ignore_outcome)
+       when is_boolean(track_outcome) or is_boolean(ignore_outcome) do
+    IO.puts(
+      "#{IO.ANSI.yellow()}ignore_outcome is deprecated. Use track_outcome instead (with an inverted value).#{IO.ANSI.reset()}"
+    )
+
+    if is_nil(track_outcome) do
+      not ignore_outcome
+    else
+      track_outcome
     end
   end
 
