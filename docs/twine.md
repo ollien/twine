@@ -30,7 +30,7 @@ two options to trace calls
    typically what you want if you just want to see what is being called and 
    with what arguments.
  - `Twine.recv_calls/2`, which will send calls to the iex shell's process. These
- messages will be of the type `Twine.TracedCall`, This can
+ messages will be of the type `Twine.TracedCall`. This can
  be useful if you need to have programmatic access to the call data once it has
  been performed. 
 
@@ -60,17 +60,16 @@ Doing so will negate many of the safety benefits, and can lead to a node crash.
 Typically, I have found that I only need to print out a handful (one to five) of
 traces to understand what is happening.
 
-If you choose to combine a rate with `recv_calls`, **you should be careful not
+If you choose to combine a rate with `recv_calls`, you should be careful not
 to let these pile up in the process mailbox, or you can consume unbounded
-amounts of memory.**
+amounts of memory.
 
 By default, Twine will print that the call itself occurred, and not information
 about its outcome (return values, thrown/caught exceptions, and process
-crashes/termination). If you would like to display these outcomes
-`show_outcome: true` to `print_calls`/`recv_calls`. In order to do this,
-Twine must wait for the function to produce an outcome, so be aware that your
-calls may not show instantaneously. Twine will also incur a memory penalty, as
-it must keep a copy of your function arguments.
+crashes/termination). If you would like to display these outcomes, pass
+`show_outcome: true` to `print_calls`/`recv_calls`. There are some caveats,
+however, so be sure to read [Function Outcomes](#function-outcomes) before
+using `show_outcome`.
 
 
 ### Tracing All Calls To A Function
@@ -104,7 +103,9 @@ iex>
 [2025-07-27 20:29:57.837534Z] #PID<0.177.0> - Enum.filter([4, 5, 6], #Function<42.39164016/1 in :erl_eval.expr/6>)
 ```
 
-We can also use `show_outcome: true` to output the return value and location the code returns to.
+We can also use `show_outcome: true` to output the return value and location
+the code returns to. Note that this option is not suitable for hot recursive
+code paths - see [Function Outcomes](#function-outcomes) for more details.
 ```elixir
 iex> require Twine
 iex> Twine.print_calls(Enum.filter([head | rest], func), 5, show_outcome: true)
@@ -185,7 +186,7 @@ iex>
 ### Removing Useless Information
 
 Often, we don't really care about all the information passed to a function, and
-printing all of it would be slow and be extremely noisy. For instance, in some 
+printing all of it would be slow and extremely noisy. For instance, in some 
 systems, GenServers can hold a large amount of state, and we don't want to see
 all (or any) of it when tracing calls. 
 
@@ -224,7 +225,7 @@ iex>
 ```
 
 `return_mapper` behaves identically to `arg_mapper`, but it is a 1-arity
-function that replaces the return value. It has no effect if `show_outcome`
+function that replaces the return value. Unlike `arg_mapper`, it has no effect if `show_outcome`
 is set to `false`.
 
 ```elixir
@@ -306,8 +307,7 @@ iex>
 
 As mentioned, Twine can print the different outcomes of the functions it
 traces. This behavior can be opted into with `show_outcome: true` to
-`print_calls`/`recv_calls`, if your function is particularly long-running, or
-you are just simply not interested in the extra output.
+`print_calls`/`recv_calls`.
 
 > #### Warning {: .warning}
 >
@@ -320,6 +320,13 @@ you are just simply not interested in the extra output.
 > For more information, see [the Erlang `match_spec`
 > docs](https://www.erlang.org/docs/28/apps/erts/match_spec.html) under
 > "`return_trace`".
+
+When using this option, Twine must wait for the function to produce an outcome
+before displaying it, so be aware that your calls may not show instantaneously,
+particularly if your function is long-running. Using this option will also
+incur a memory penalty, as Twine must keep a copy of your function
+arguments/return values. This overhead can be reduced with
+`arg_mapper`/`return_mapper`.
 
 #### Returned Values
 
