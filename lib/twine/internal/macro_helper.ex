@@ -75,8 +75,8 @@ defmodule Twine.Internal.MacroHelper do
     end
   end
 
-  defp decompose_match_call({:&, _meta1, _invalid_identifier}) do
-    # This must not get parsed as a call (or Elixir will gladly accept &IO.inspect as a call).
+  defp decompose_match_call({operator, _meta1, _invalid_identifier}) when operator in [:/, :&] do
+    # This must not get parsed as a call (or Elixir will gladly accept &IO.inspect or IO.inspect/1 as a call).
     {:error, "Invalid call specification"}
   end
 

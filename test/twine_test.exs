@@ -242,7 +242,7 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      test "prints an error if a poorly formed &function/arity is given" do
+      test "prints an error if a poorly formed &function/arity is given (no arity)" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -256,6 +256,32 @@ defmodule Twine.TraceMacroCase do
             Twine.unquote(macro_name)(
               # Note the lack of arity
               &Blah.func(),
+              1,
+              unquote(base_opts)
+            )
+
+            Blah.func(1, 2, 3)
+
+            Code.eval_quoted(unquote(generate_output))
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Invalid call specification"
+      end
+
+      test "prints an error if a poorly formed &function/arity is given (no ampersand)" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              Blah.func() / 3,
               1,
               unquote(base_opts)
             )
