@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-12-07
+### Fixed
+- Error messages are more clear when giving incorrect `&function/arity` syntax, specifically `function/arity` without the ampersand.
+
 ## [0.5.1] - 2025-12-01
 ### Fixed
 - Fixed typo in doc-comment that used incorrect name for `track_outcome`.
@@ -74,8 +78,9 @@ so this has been changed.
 
 Initial Release
 
-[Unreleased]: https://github.com/ollien/twine/compare/v0.5.1..
-[0.5.1]: https://github.com/ollien/twine/compare/v0.5.0..0.5.1
+[Unreleased]: https://github.com/ollien/twine/compare/v0.5.2..
+[0.5.2]: https://github.com/ollien/twine/compare/v0.5.0..v0.5.2
+[0.5.1]: https://github.com/ollien/twine/compare/v0.5.0..v0.5.1
 [0.5.0]: https://github.com/ollien/twine/compare/v0.4.3..v0.5.0
 [0.4.3]: https://github.com/ollien/twine/compare/v0.4.2..v0.4.3
 [0.4.2]: https://github.com/ollien/twine/compare/v0.4.1..v0.4.2

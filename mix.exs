@@ -4,7 +4,7 @@ defmodule Twine.MixProject do
   def project do
     [
       app: :twine,
-      version: "0.5.1",
+      version: "0.5.2",
       elixir: "~> 1.15",
       description: "Ergonomically trace calls in Elixir with recon_trace",
       package: package(),
