@@ -8,9 +8,11 @@ Twine is a tracing tool based on Ferd's wonderful [`recon_trace`](https://ferd.g
 but can be a little unweildy, especially on Elixir systems. `Twine` is a wrapper
 for `recon_trace`, and adds a familiar, friendly, syntax.
 
+![Demonstration gif showing traces on a running GenServer](./img/demo.gif)
+
 ## Usage
 
-In a remote shell for your running process,
+In a remote shell for your running application,
 
 ```ex
 require Twine
