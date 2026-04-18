@@ -481,7 +481,7 @@ defmodule Twine.TraceMacroCase do
         refute TestHelper.has_exception?(output)
       end
 
-      test "informs user if call is missing" do
+      test "informs user if module is missing" do
         output =
           TestHelper.iex_run do
             require Twine
@@ -491,7 +491,54 @@ defmodule Twine.TraceMacroCase do
           end
 
         assert TestHelper.strip_ansi(output) =~
-                 "No functions matched, check that it is specified correctly"
+                 "Undefined module Blah"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "informs user if function is missing" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+            end
+
+            Twine.unquote(macro_name)(
+              &Blah.func/3,
+              1
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Undefined function &Blah.func/3"
+
+        refute TestHelper.has_exception?(output)
+      end
+
+      test "cannot bind to function with wrong arity" do
+        output =
+          TestHelper.iex_run do
+            require Twine
+
+            defmodule Blah do
+              def func(_argument1, _argument2) do
+                nil
+              end
+
+              def func(_argument1, _argument2, _argument3) do
+                nil
+              end
+            end
+
+            Twine.unquote(macro_name)(
+              &Blah.func/4,
+              1
+            )
+          end
+
+        assert TestHelper.strip_ansi(output) =~
+                 "Undefined function &Blah.func/4; known form(s) are &Blah.func/2 and &Blah.func/3"
 
         refute TestHelper.has_exception?(output)
       end

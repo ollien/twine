@@ -145,6 +145,7 @@ defmodule Twine.Internal do
 
       {:error, error} ->
         IO.puts("#{IO.ANSI.red()}#{error}#{IO.ANSI.reset()}")
+        :error
     end
   end
 
@@ -203,7 +204,8 @@ defmodule Twine.Internal do
       internal_debug_logging: internal_debug_logging
     }
 
-    with :ok <- validate_arg_mapper(config.arg_mapper, num_args),
+    with :ok <- validate_mfa({m, f, num_args}),
+         :ok <- validate_arg_mapper(config.arg_mapper, num_args),
          :ok <- validate_return_mapper(config.return_mapper) do
       {:ok, config}
     end
@@ -249,6 +251,43 @@ defmodule Twine.Internal do
 
   defp correct_rate_for_tracked(rate) when is_integer(rate) do
     rate * 3
+  end
+
+  defp validate_mfa({module, func, num_args}) do
+    with {:ok, arities} <- function_arities(module, func) do
+      if Enum.member?(arities, num_args) do
+        :ok
+      else
+        # Can't use Atom.to_string(module)/#{module} as that will give the Elixir prefix, which is not great output
+        known_forms =
+          arities
+          |> Enum.sort()
+          |> Enum.map(fn arity -> "&#{inspect(module)}.#{func}/#{arity}" end)
+          |> grammatical_join()
+
+        {:error,
+         "Undefined function &#{inspect(module)}.#{func}/#{num_args}; known form(s) are #{known_forms}"}
+      end
+    else
+      {:error, :unknown_module} ->
+        {:error, "Undefined module #{inspect(module)}"}
+
+      {:error, :unknown_function} ->
+        {:error, "Undefined function &#{inspect(module)}.#{func}/#{num_args}"}
+    end
+  end
+
+  defp function_arities(module, func) do
+    if Code.ensure_loaded?(module) do
+      functions = module.module_info(:functions)
+
+      case Keyword.get_values(functions, func) do
+        [] -> {:error, :unknown_function}
+        arities -> {:ok, arities}
+      end
+    else
+      {:error, :unknown_module}
+    end
   end
 
   defp validate_arg_mapper(mapper, num_args) do
@@ -406,5 +445,22 @@ defmodule Twine.Internal do
       end)
 
     {head, conditions, actions}
+  end
+
+  defp grammatical_join([]) do
+    ""
+  end
+
+  defp grammatical_join([item]) do
+    item
+  end
+
+  defp grammatical_join([item1, item2]) do
+    "#{item1} and #{item2}"
+  end
+
+  defp grammatical_join(items) when is_list(items) do
+    {commas, [last]} = Enum.split(items, -1)
+    Enum.join(commas, ", ") <> ", and " <> last
   end
 end

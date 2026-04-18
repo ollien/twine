@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Explicit validation around function arities existing.
+
 ## [0.5.2] - 2025-12-07
 ### Fixed
 - Error messages are more clear when giving incorrect `&function/arity` syntax, specifically `function/arity` without the ampersand.
