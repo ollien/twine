@@ -10,9 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Explicit validation around function arities existing.
 
+### Changed
+- The number of functions matched is no longer displayed. This was often
+  confusing as it showed all matched forms, which is often not was specified.
+
 ## [0.5.2] - 2025-12-07
 ### Fixed
-- Error messages are more clear when giving incorrect `&function/arity` syntax, specifically `function/arity` without the ampersand.
+- Error messages are more clear when giving incorrect `&function/arity` syntax,
+  specifically `function/arity` without the ampersand.
 
 ## [0.5.1] - 2025-12-01
 ### Fixed

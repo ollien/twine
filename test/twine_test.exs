@@ -557,7 +557,7 @@ defmodule Twine.TraceMacroCase do
             Twine.unquote(macro_name)(Blah.func(_arg1, _arg2, _arg3), 1, unquote(base_opts))
           end
 
-        assert TestHelper.strip_ansi(output) =~ "1 function(s) matched, waiting for calls..."
+        assert TestHelper.strip_ansi(output) =~ "Function matched, waiting for calls..."
         refute TestHelper.has_exception?(output)
       end
 
