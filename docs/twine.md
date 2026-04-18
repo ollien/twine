@@ -82,7 +82,7 @@ up to five calls to `Enum.filter`, across all processes running on the node.
 ```elixir
 iex> require Twine
 iex> Twine.print_calls(Enum.filter(list, func), 5)
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-07-27 20:28:50.233475Z] #PID<0.177.0> - Enum.filter([1, 2, 3], #Function<42.39164016/1 in :erl_eval.expr/6>)
@@ -96,7 +96,7 @@ will print up to five calls to `Enum.filter/2` with a non-empty list.
 ```elixir
 iex> require Twine
 iex> Twine.print_calls(Enum.filter([head | rest], func), 5)
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-07-27 20:29:53.934746Z] #PID<0.177.0> - Enum.filter([1, 2, 3], #Function<42.39164016/1 in :erl_eval.expr/6>)
@@ -109,7 +109,7 @@ code paths - see [Function Outcomes](#function-outcomes) for more details.
 ```elixir
 iex> require Twine
 iex> Twine.print_calls(Enum.filter([head | rest], func), 5, track_outcome: true)
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-09-29 21:11:14.297831Z] #PID<0.214.0> - Enum.filter([1, 2, 3], #Function<42.3316493/1 in :erl_eval.expr/6>)
@@ -137,7 +137,7 @@ iex> Twine.print_calls(
   pid: pid
 )
 
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-07-27 20:43:27.683690Z] #PID<0.181.0> - Server.handle_call({:subscribe, "listener", #PID<0.189.0>}, {#PID<0.182.0>, [:alias | #Reference<0.0.23299.892277068.2243493891.5200>]}, %{subscribers: []})
@@ -157,7 +157,7 @@ iex> Twine.print_calls(
   {10, 1000},
   pid: pid
 )
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 
@@ -176,7 +176,7 @@ iex> Twine.print_calls(
   {10, 1000},
   pid: pid
 )
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 
@@ -210,7 +210,7 @@ iex> Twine.print_calls(
   track_outcome: true
 )
 iex>
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 [2025-09-30 02:40:26.349150Z] #PID<0.208.0> - MyServer.handle_call({:subscribe, "listener3", #PID<0.222.0>}, {#PID<0.221.0>, [:alias | #Reference<0.0.28291.1443443586.1280638978.194536>]}, :ignored)
                               ├ Returned: {:reply, :ok,
@@ -242,7 +242,7 @@ iex> Twine.print_calls(
   end,
   track_outcome: true
 )
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-09-30 02:44:29.146149Z] #PID<0.208.0> - MyServer.handle_call(
@@ -283,7 +283,7 @@ iex> Twine.print_calls(
   end,
   track_outcome: true
 )
-1 function(s) matched, waiting for calls...
+Function matched, waiting for calls...
 :ok
 iex>
 [2025-09-30 02:48:15.115291Z] #PID<0.243.0> - MyServer.handle_call({:subscribe, "listener1", #PID<0.253.0>}, {#PID<0.252.0>, [:alias | #Reference<0.0.32259.1443443586.1280638978.195228>]}, [])
