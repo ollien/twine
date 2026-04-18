@@ -349,8 +349,8 @@ defmodule Twine.Internal do
     :error
   end
 
-  def match_output(_n) do
-    IO.puts("Function matched, waiting for calls...#{IO.ANSI.reset()}")
+  def match_output(n) do
+    IO.puts("#{IO.ANSI.green()}#{n}Function matched, waiting for calls...#{IO.ANSI.reset()}")
 
     :ok
   end
