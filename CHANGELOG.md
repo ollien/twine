@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-18
 ### Added
 - Explicit validation around function arities existing.
 
@@ -86,7 +87,8 @@ so this has been changed.
 
 Initial Release
 
-[Unreleased]: https://github.com/ollien/twine/compare/v0.5.2..
+[Unreleased]: https://github.com/ollien/twine/compare/v0.6.0..
+[0.6.0]: https://github.com/ollien/twine/compare/v0.5.2..v0.6.0
 [0.5.2]: https://github.com/ollien/twine/compare/v0.5.0..v0.5.2
 [0.5.1]: https://github.com/ollien/twine/compare/v0.5.0..v0.5.1
 [0.5.0]: https://github.com/ollien/twine/compare/v0.4.3..v0.5.0
